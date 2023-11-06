@@ -12,19 +12,17 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use std::{collections::HashMap, convert::TryInto, sync::Arc};
+use std::{convert::TryInto, sync::Arc};
 
 use arrow::{
     array::StringArray,
     datatypes::{DataType, Field, Schema},
     record_batch::RecordBatch,
 };
-use datafusion::logical_expr::Expr;
-use datafusion_proto::bytes::Serializeable;
-use logger::error;
+use logger::warn;
 use query_frontend::{ast::ShowCreateObject, plan::ShowCreatePlan};
 use snafu::ensure;
-use table_engine::{partition::PartitionInfo, table::TableRef};
+use table_engine::{table, table::TableRef};
 
 use crate::{
     interpreter::Output,
@@ -76,113 +74,26 @@ impl ShowCreateInterpreter {
     }
 
     fn render_table_sql(table_ref: TableRef) -> String {
+        let render_partition_info = table::render_partition_info(table_ref.partition_info())
+            .map_or_else(
+                |e| {
+                    warn!("Failed to render partition info, err:{e}");
+                    String::new()
+                },
+                |v| match v {
+                    Some(v) => format!(" {v}"),
+                    None => String::new(),
+                },
+            );
         //TODO(boyan) pretty output
         format!(
             "CREATE TABLE `{}` ({}){} ENGINE={}{}",
             table_ref.name(),
-            Self::render_columns_and_constrains(&table_ref),
-            Self::render_partition_info(table_ref.partition_info()),
+            table::render_columns_and_constrains(&table_ref),
+            render_partition_info,
             table_ref.engine_type(),
-            Self::render_options(table_ref.options())
+            table::render_options(table_ref.options())
         )
-    }
-
-    fn render_columns_and_constrains(table_ref: &TableRef) -> String {
-        let table_schema = table_ref.schema();
-        let key_columns = table_schema.key_columns();
-        let timestamp_key = table_schema.timestamp_name();
-
-        let mut res = String::new();
-        for col in table_schema.columns() {
-            res += format!("`{}` {}", col.name, col.data_type).as_str();
-            if col.is_tag {
-                res += " TAG";
-            }
-
-            if col.is_dictionary {
-                res += " DICTIONARY";
-            }
-
-            if !col.is_nullable {
-                res += " NOT NULL";
-            }
-
-            if let Some(expr) = &col.default_value {
-                res += format!(" DEFAULT {expr}").as_str();
-            }
-
-            if !col.comment.is_empty() {
-                res += format!(" COMMENT '{}'", col.comment).as_str();
-            }
-            res += ", ";
-        }
-        let keys: Vec<String> = key_columns.iter().map(|col| col.name.to_string()).collect();
-        res += format!("PRIMARY KEY({}), ", keys.join(",")).as_str();
-        res += format!("TIMESTAMP KEY({timestamp_key})").as_str();
-
-        res
-    }
-
-    fn render_partition_info(partition_info: Option<PartitionInfo>) -> String {
-        if partition_info.is_none() {
-            return String::new();
-        }
-
-        let partition_info = partition_info.unwrap();
-        match partition_info {
-            PartitionInfo::Hash(v) => {
-                let expr = match Expr::from_bytes(&v.expr) {
-                    Ok(expr) => expr,
-                    Err(e) => {
-                        error!("show create table parse partition info failed, err:{}", e);
-                        return String::new();
-                    }
-                };
-
-                if v.linear {
-                    format!(
-                        " PARTITION BY LINEAR HASH({expr}) PARTITIONS {}",
-                        v.definitions.len()
-                    )
-                } else {
-                    format!(
-                        " PARTITION BY HASH({expr}) PARTITIONS {}",
-                        v.definitions.len()
-                    )
-                }
-            }
-            PartitionInfo::Key(v) => {
-                let rendered_partition_key = v.partition_key.join(",");
-                if v.linear {
-                    format!(
-                        " PARTITION BY LINEAR KEY({rendered_partition_key}) PARTITIONS {}",
-                        v.definitions.len()
-                    )
-                } else {
-                    format!(
-                        " PARTITION BY KEY({rendered_partition_key}) PARTITIONS {}",
-                        v.definitions.len()
-                    )
-                }
-            }
-            PartitionInfo::Random(v) => {
-                format!(" PARTITION BY RANDOM PARTITIONS {}", v.definitions.len())
-            }
-        }
-    }
-
-    fn render_options(opts: HashMap<String, String>) -> String {
-        if !opts.is_empty() {
-            let mut v: Vec<String> = opts
-                .into_iter()
-                .map(|(k, v)| format!("{k}='{v}'"))
-                .collect();
-            // sorted by option name
-            v.sort();
-            format!(" WITH({})", v.join(", "))
-        } else {
-            "".to_string()
-        }
     }
 }
 
@@ -220,7 +131,9 @@ mod test {
         let expected = " PARTITION BY HASH(col1 + col2) PARTITIONS 2".to_string();
         assert_eq!(
             expected,
-            ShowCreateInterpreter::render_partition_info(Some(partition_info))
+            table::render_partition_info(Some(partition_info))
+                .unwrap()
+                .unwrap()
         );
     }
 
@@ -246,7 +159,9 @@ mod test {
         let expected = " PARTITION BY KEY(col1) PARTITIONS 2".to_string();
         assert_eq!(
             expected,
-            ShowCreateInterpreter::render_partition_info(Some(partition_info))
+            table::render_partition_info(Some(partition_info))
+                .unwrap()
+                .unwrap()
         );
     }
 }

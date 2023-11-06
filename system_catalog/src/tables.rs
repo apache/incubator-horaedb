@@ -28,10 +28,11 @@ use common_types::{
     time::Timestamp,
 };
 use generic_error::BoxError;
+use logger::warn;
 use snafu::ResultExt;
 use table_engine::{
     stream::SendableRecordBatchStream,
-    table::{ReadRequest, TableId, TableRef},
+    table::{render_partition_info, ReadRequest, TableId, TableRef},
 };
 
 use crate::{OneRecordBatchStream, SystemTable, TABLES_TABLE_ID, TABLES_TABLE_NAME};
@@ -91,6 +92,14 @@ fn tables_schema() -> Schema {
                 .unwrap(),
         )
         .unwrap()
+        .add_normal_column(
+            column_schema::Builder::new("partition_info".to_string(), DatumKind::String)
+                .is_nullable(true)
+                .is_tag(false)
+                .build()
+                .unwrap(),
+        )
+        .unwrap()
         .build()
         .unwrap()
 }
@@ -125,6 +134,13 @@ impl Tables {
         datums.push(Datum::from(table.name()));
         datums.push(Datum::from(table.id().as_u64()));
         datums.push(Datum::from(table.engine_type()));
+        match render_partition_info(table.partition_info()) {
+            Ok(v) => {
+                datums.push(v.map_or(Datum::Null, |v| Datum::from(v.as_str())));
+            }
+            Err(e) => warn!("Failed to render partition table, {e}"),
+        };
+
         Row::from_datums(datums)
     }
 }

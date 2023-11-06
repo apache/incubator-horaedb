@@ -34,6 +34,8 @@ use common_types::{
     row::{Row, RowGroup},
     schema::{RecordSchemaWithKey, Schema, Version},
 };
+use datafusion::logical_expr::Expr;
+use datafusion_proto::bytes::Serializeable;
 use generic_error::{BoxError, GenericError};
 use macros::define_result;
 use serde::Deserialize;
@@ -158,6 +160,9 @@ pub enum Error {
 
     #[snafu(display("Failed to do merge write, msg:{}", msg))]
     MergeWrite { msg: String },
+
+    #[snafu(display("Failed to render table, msg:{msg}, err:{source}"))]
+    RenderTable { msg: String, source: GenericError },
 }
 
 define_result!(Error);
@@ -683,6 +688,101 @@ impl From<TableInfo> for sys_catalog_pb::TableEntry {
             created_time: 0,
             modified_time: 0,
         }
+    }
+}
+
+pub fn render_columns_and_constrains(table_ref: &TableRef) -> String {
+    let table_schema = table_ref.schema();
+    let key_columns = table_schema.key_columns();
+    let timestamp_key = table_schema.timestamp_name();
+
+    let mut res = String::new();
+    for col in table_schema.columns() {
+        res += format!("`{}` {}", col.name, col.data_type).as_str();
+        if col.is_tag {
+            res += " TAG";
+        }
+
+        if col.is_dictionary {
+            res += " DICTIONARY";
+        }
+
+        if !col.is_nullable {
+            res += " NOT NULL";
+        }
+
+        if let Some(expr) = &col.default_value {
+            res += format!(" DEFAULT {expr}").as_str();
+        }
+
+        if !col.comment.is_empty() {
+            res += format!(" COMMENT '{}'", col.comment).as_str();
+        }
+        res += ", ";
+    }
+    let keys: Vec<String> = key_columns.iter().map(|col| col.name.to_string()).collect();
+    res += format!("PRIMARY KEY({}), ", keys.join(",")).as_str();
+    res += format!("TIMESTAMP KEY({timestamp_key})").as_str();
+
+    res
+}
+
+pub fn render_partition_info(partition_info: Option<PartitionInfo>) -> Result<Option<String>> {
+    if partition_info.is_none() {
+        return Ok(None);
+    }
+
+    let partition_info = partition_info.unwrap();
+    let ret = match partition_info {
+        PartitionInfo::Hash(v) => {
+            let expr = Expr::from_bytes(&v.expr).box_err().context(RenderTable {
+                msg: "render partition info",
+            })?;
+
+            if v.linear {
+                format!(
+                    " PARTITION BY LINEAR HASH({expr}) PARTITIONS {}",
+                    v.definitions.len()
+                )
+            } else {
+                format!(
+                    " PARTITION BY HASH({expr}) PARTITIONS {}",
+                    v.definitions.len()
+                )
+            }
+        }
+        PartitionInfo::Key(v) => {
+            let rendered_partition_key = v.partition_key.join(",");
+            if v.linear {
+                format!(
+                    "PARTITION BY LINEAR KEY({rendered_partition_key}) PARTITIONS {}",
+                    v.definitions.len()
+                )
+            } else {
+                format!(
+                    "PARTITION BY KEY({rendered_partition_key}) PARTITIONS {}",
+                    v.definitions.len()
+                )
+            }
+        }
+        PartitionInfo::Random(v) => {
+            format!("PARTITION BY RANDOM PARTITIONS {}", v.definitions.len())
+        }
+    };
+    Ok(Some(ret))
+}
+
+pub fn render_options(opts: HashMap<String, String>) -> String {
+    if !opts.is_empty() {
+        let mut v: Vec<String> = opts
+            .into_iter()
+            .map(|(k, v)| format!("{k}='{v}'"))
+            .collect();
+        // sorted by option name
+        v.sort();
+        format!(" WITH({})", v.join(", "))
+    } else {
+        "".to_string()
     }
 }
 

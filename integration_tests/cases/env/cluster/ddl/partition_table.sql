@@ -10,6 +10,10 @@ CREATE TABLE `partition_table_t`(
 
 SHOW CREATE TABLE partition_table_t;
 
+SELECT * from system.public.tables where table_name like "%partition_table_t%" order by table_id;
+
+SELECT * from system.public.tables where partition_info is not null;
+
 INSERT INTO partition_table_t (t, name, value)
 VALUES (1651737067000, "ceresdb0", 100),
        (1651737067000, "ceresdb1", 101),

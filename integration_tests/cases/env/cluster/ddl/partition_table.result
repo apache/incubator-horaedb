@@ -18,6 +18,22 @@ Table,Create Table,
 String("partition_table_t"),String("CREATE TABLE `partition_table_t` (`tsid` uint64 NOT NULL, `t` timestamp NOT NULL, `name` string TAG, `id` int TAG, `value` double NOT NULL, PRIMARY KEY(tsid,t), TIMESTAMP KEY(t)) PARTITION BY KEY(name) PARTITIONS 4 ENGINE=Analytic WITH(arena_block_size='2097152', compaction_strategy='default', compression='ZSTD', enable_ttl='false', memtable_type='skiplist', num_rows_per_row_group='8192', segment_duration='', storage_format='AUTO', ttl='7d', update_mode='OVERWRITE', write_buffer_size='33554432')"),
 
 
+SELECT * from system.public.tables where table_name like "%partition_table_t%" order by table_id;
+
+timestamp,catalog,schema,table_name,table_id,engine,partition_info,
+Timestamp(0),String("ceresdb"),String("public"),String("partition_table_t"),UInt64(43),String("Analytic"),String("PARTITION BY KEY(name) PARTITIONS 4"),
+Timestamp(0),String("ceresdb"),String("public"),String("__partition_table_t_0"),UInt64(44),String("Analytic"),String(""),
+Timestamp(0),String("ceresdb"),String("public"),String("__partition_table_t_1"),UInt64(45),String("Analytic"),String(""),
+Timestamp(0),String("ceresdb"),String("public"),String("__partition_table_t_3"),UInt64(46),String("Analytic"),String(""),
+Timestamp(0),String("ceresdb"),String("public"),String("__partition_table_t_2"),UInt64(47),String("Analytic"),String(""),
+
+
+SELECT * from system.public.tables where partition_info is not null;
+
+timestamp,catalog,schema,table_name,table_id,engine,partition_info,
+Timestamp(0),String("ceresdb"),String("public"),String("partition_table_t"),UInt64(43),String("Analytic"),String("PARTITION BY KEY(name) PARTITIONS 4"),
+
+
 INSERT INTO partition_table_t (t, name, value)
 VALUES (1651737067000, "ceresdb0", 100),
        (1651737067000, "ceresdb1", 101),
