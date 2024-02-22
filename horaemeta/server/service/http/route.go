@@ -94,6 +94,11 @@ func (r *Router) DebugPut(path string, h http.HandlerFunc) {
 	r.rtr.PUT(DebugPrefix+path, r.handle(path, h))
 }
 
+// DebugPost registers a new POST route without prefix.
+func (r *Router) DebugPost(path string, h http.HandlerFunc) {
+	r.rtr.POST(DebugPrefix+path, r.handle(path, h))
+}
+
 // Post registers a new POST route.
 func (r *Router) Post(path string, h http.HandlerFunc) {
 	r.rtr.POST(r.prefix+path, r.handle(path, h))

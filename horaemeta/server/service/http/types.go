@@ -168,3 +168,28 @@ type UpdateEnableScheduleRequest struct {
 type RemoveShardAffinitiesRequest struct {
 	ShardIDs []storage.ShardID `json:"shardIDs"`
 }
+
+type DiagnoseTableRequest struct {
+	ClusterName string   `json:"clusterName"`
+	SchemaName  string   `json:"schemaName"`
+	Names       []string `json:"names"`
+}
+
+type TableInfo struct {
+	TableName string          `json:"tableName"`
+	NodeName  string          `json:"nodeName"`
+	ShardID   storage.ShardID `json:"shardID"`
+}
+
+type DiagnoseTable struct {
+	Tables          []TableInfo            `json:"tables"`
+	PartitionTables map[string][]TableInfo `json:"partitionTables"`
+}
+
+type DiagnoseTableResult struct {
+	UnExistedTables          []string            `json:"unExistedTables"`
+	UnExistedPartitionTables map[string][]string `json:"unExistedPartitionTables"`
+	NoShardTables            []string            `json:"noShardTables"`
+	NoShardPartitionTables   map[string][]string `json:"noShardPartitionTables"`
+	ExistedTables            DiagnoseTable       `json:"existedTables"`
+}

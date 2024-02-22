@@ -28,6 +28,8 @@ import (
 	"net/http"
 	"net/http/pprof"
 
+	"github.com/apache/incubator-horaedb-proto/golang/pkg/clusterpb"
+
 	"github.com/apache/incubator-horaedb-meta/pkg/coderr"
 	"github.com/apache/incubator-horaedb-meta/pkg/log"
 	"github.com/apache/incubator-horaedb-meta/server/cluster"
@@ -89,6 +91,7 @@ func (a *API) NewAPIRouter() *Router {
 	router.DebugGet("/pprof/goroutine", a.pprofGoroutine)
 	router.DebugGet("/pprof/threadCreate", a.pprofThreadCreate)
 	router.DebugGet(fmt.Sprintf("/diagnose/:%s/shards", clusterNameParam), wrap(a.diagnoseShards, true, a.forwardClient))
+	router.DebugPost(fmt.Sprintf("/diagnose/tables"), wrap(a.diagnoseTable, true, a.forwardClient))
 	router.DebugGet("/leader", wrap(a.getLeader, false, a.forwardClient))
 	router.DebugGet(fmt.Sprintf("/clusters/:%s/enableSchedule", clusterNameParam), wrap(a.getEnableSchedule, true, a.forwardClient))
 	router.DebugPut(fmt.Sprintf("/clusters/:%s/enableSchedule", clusterNameParam), wrap(a.updateEnableSchedule, true, a.forwardClient))
@@ -645,6 +648,73 @@ func (a *API) diagnoseShards(req *http.Request) apiFuncResult {
 	return okResult(ret)
 }
 
+func (a *API) diagnoseTable(r *http.Request) apiFuncResult {
+	var req DiagnoseTableRequest
+	err := json.NewDecoder(r.Body).Decode(&req)
+	if err != nil {
+		return errResult(ErrParseRequest, err.Error())
+	}
+
+	result, err := a.clusterManager.RouteTables(context.Background(), req.ClusterName, req.SchemaName, req.Names)
+	if err != nil {
+		return errResult(ErrTable, err.Error())
+	}
+
+	existedTables := make(map[string]metadata.RouteEntry, len(result.RouteEntries))
+	for _, tableInfo := range result.RouteEntries {
+		existedTables[tableInfo.Table.Name] = tableInfo
+	}
+
+	partitionTableNames := make(map[string][]string, 0)
+	ret := DiagnoseTableResult{
+		UnExistedTables:          []string{},
+		UnExistedPartitionTables: map[string][]string{},
+		NoShardTables:            []string{},
+		NoShardPartitionTables:   map[string][]string{},
+		ExistedTables:            DiagnoseTable{Tables: []TableInfo{}, PartitionTables: make(map[string][]TableInfo)},
+	}
+
+	for _, name := range req.Names {
+		if tableInfo, ok := existedTables[name]; !ok {
+			ret.UnExistedTables = append(ret.UnExistedTables, name)
+		} else {
+			if tableInfo.Table.PartitionInfo.Info != nil {
+				partitionTableNames[name] = getPartitionTableNames(existedTables[name].Table)
+			} else {
+				if len(tableInfo.NodeShards) != 0 {
+					ret.ExistedTables.Tables = append(ret.ExistedTables.Tables, TableInfo{TableName: name, NodeName: tableInfo.NodeShards[0].ShardNode.NodeName, ShardID: tableInfo.NodeShards[0].ShardNode.ID})
+					continue
+				}
+				ret.NoShardTables = append(ret.NoShardTables, name)
+			}
+		}
+	}
+
+	for name, partitionTableNames := range partitionTableNames {
+		result, err = a.clusterManager.RouteTables(context.Background(), req.ClusterName, req.SchemaName, partitionTableNames)
+		if err != nil {
+			return errResult(ErrTable, err.Error())
+		}
+		existedPartitionTables := make(map[string]metadata.RouteEntry, len(result.RouteEntries))
+		for _, tableInfo := range result.RouteEntries {
+			existedPartitionTables[tableInfo.Table.Name] = tableInfo
+		}
+		for _, partitionTableName := range partitionTableNames {
+			if tableInfo, ok := existedPartitionTables[partitionTableName]; !ok {
+				ret.UnExistedPartitionTables[name] = append(ret.UnExistedPartitionTables[name], partitionTableName)
+			} else {
+				if len(tableInfo.NodeShards) != 0 {
+					ret.ExistedTables.PartitionTables[name] = append(ret.ExistedTables.PartitionTables[name], TableInfo{TableName: partitionTableName, NodeName: tableInfo.NodeShards[0].ShardNode.NodeName, ShardID: tableInfo.NodeShards[0].ShardNode.ID})
+					continue
+				}
+				ret.NoShardPartitionTables[name] = append(ret.NoShardPartitionTables[name], partitionTableName)
+			}
+		}
+	}
+
+	return okResult(ret)
+}
+
 func (a *API) health(_ *http.Request) apiFuncResult {
 	isServerHealthy := a.serverStatus.IsHealthy()
 	if isServerHealthy {
@@ -774,4 +844,29 @@ func wrap(f apiFunc, needForward bool, forwardClient *ForwardClient) http.Handle
 		respond(w, result.data)
 	})
 	return hf
+}
+
+func getPartitionTableNames(table metadata.TableInfo) []string {
+	var partitionTableNames []string
+	if table.PartitionInfo.Info == nil {
+		return partitionTableNames
+	}
+
+	processPartitionDefinition := func(defs []*clusterpb.PartitionDefinition) {
+		for _, def := range defs {
+			partitionTableName := fmt.Sprintf("__%s_%s", table.Name, def.GetName())
+			partitionTableNames = append(partitionTableNames, partitionTableName)
+		}
+	}
+
+	switch info := table.PartitionInfo.Info.GetInfo().(type) {
+	case *clusterpb.PartitionInfo_Hash:
+		processPartitionDefinition(info.Hash.GetDefinitions())
+	case *clusterpb.PartitionInfo_Key:
+		processPartitionDefinition(info.Key.GetDefinitions())
+	case *clusterpb.PartitionInfo_Random:
+		processPartitionDefinition(info.Random.GetDefinitions())
+	}
+
+	return partitionTableNames
 }
