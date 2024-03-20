@@ -417,7 +417,8 @@ impl Service {
         warp::path!("influxdb" / "v1" / ..).and(write_api.or(query_api))
     }
 
-    // POST /opentsdb/api/put
+    /// Expose `/opentsdb/api/put` and `/opentsdb/api/query` to serve opentsdb
+    /// API
     fn opentsdb_api(
         &self,
     ) -> impl Filter<Extract = (impl warp::Reply,), Error = warp::Rejection> + Clone {
@@ -455,7 +456,21 @@ impl Service {
                 }
             });
 
-        warp::path!("opentsdb" / "api" / ..).and(put_api)
+        let query_api = warp::path!("query")
+            .and(warp::post())
+            .and(body_limit)
+            .and(self.with_context())
+            .and(warp::body::json())
+            .and(self.with_proxy())
+            .and_then(|ctx, req, proxy: Arc<Proxy>| async move {
+                let result = proxy.handle_opentsdb_query(ctx, req).await;
+                match result {
+                    Ok(res) => Ok(reply::json(&res)),
+                    Err(e) => Err(reject::custom(e)),
+                }
+            });
+
+        warp::path!("opentsdb" / "api" / ..).and(put_api.or(query_api))
     }
 
     // POST /debug/flush_memtable

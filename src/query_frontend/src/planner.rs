@@ -72,6 +72,10 @@ use crate::{
     container::TableReference,
     frontend::parse_table_name_with_standard,
     logical_optimizer::optimize_plan,
+    opentsdb::{
+        opentsdb_query_to_plan,
+        types::{OpentsdbQueryPlan, QueryRequest},
+    },
     parser,
     partition::PartitionParser,
     plan::{
@@ -250,6 +254,9 @@ pub enum Error {
     #[snafu(display("Failed to build plan from promql, error:{}", source))]
     BuildPromPlanError { source: crate::promql::Error },
 
+    #[snafu(display("Failed to build opentsdb plan, error:{}", source))]
+    BuildOpentsdbPlanError { source: crate::opentsdb::Error },
+
     #[snafu(display(
         "Failed to cast default value expr to column type, expr:{}, from:{}, to:{}",
         expr,
@@ -379,6 +386,11 @@ impl<'a, P: MetaProvider> Planner<'a, P> {
         planner
             .statement_to_plan(statement)
             .context(BuildInfluxqlPlan)
+    }
+
+    pub fn opentsdb_query_to_plan(&self, query: QueryRequest) -> Result<OpentsdbQueryPlan> {
+        opentsdb_query_to_plan(query, self.provider, self.read_parallelism, self.dyn_config)
+            .context(BuildOpentsdbPlanError)
     }
 
     pub fn write_req_to_plan(

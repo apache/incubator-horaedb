@@ -18,7 +18,9 @@
 use std::sync::Arc;
 
 use catalog::consts::{DEFAULT_CATALOG, DEFAULT_SCHEMA};
-use common_types::tests::{build_default_value_schema, build_schema, build_schema_for_cpu};
+use common_types::tests::{
+    build_default_value_schema, build_schema, build_schema_for_cpu, build_schema_for_metric,
+};
 use datafusion::catalog::TableReference;
 use df_operator::{scalar::ScalarUdf, udaf::AggregateUdf};
 use partition_table_engine::test_util::PartitionedMemoryTable;
@@ -86,6 +88,13 @@ impl Default for MockMetaProvider {
                 )),
                 // Used in `test_partitioned_table_query_to_plan`
                 Arc::new(test_partitioned_table),
+                // Used in `test_subquery_to_plan` and `test_opentsdb_query_to_plan`
+                Arc::new(MemoryTable::new(
+                    "metric".to_string(),
+                    TableId::from(106),
+                    build_schema_for_metric(),
+                    ANALYTIC_ENGINE_TYPE.to_string(),
+                )),
             ],
         }
     }

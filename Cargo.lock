@@ -5572,6 +5572,8 @@ dependencies = [
  "regex-syntax 0.6.29",
  "runtime",
  "schema",
+ "serde",
+ "serde_json",
  "snafu 0.6.10",
  "sqlparser",
  "table_engine",
