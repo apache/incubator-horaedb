@@ -95,7 +95,7 @@ func main() {
 		panicf("fail to init global logger, err:%v", err)
 	}
 	defer logger.Sync() //nolint:errcheck
-	log.Info(fmt.Sprintf("server start with version: %s", buildVersion()))
+	log.Info(fmt.Sprintf("server start with version:%s", buildVersion()))
 	// TODO: Do adjustment to config for preparing joining existing cluster.
 	log.Info("server start with config", zap.String("config", string(cfgByte)))
 

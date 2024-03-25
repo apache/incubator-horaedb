@@ -24,7 +24,6 @@ import (
 
 	"github.com/apache/incubator-horaedb-meta/server/storage"
 	"github.com/apache/incubator-horaedb-proto/golang/pkg/metaservicepb"
-	"github.com/pkg/errors"
 )
 
 const (
@@ -211,5 +210,5 @@ func ParseTopologyType(rawString string) (storage.TopologyType, error) {
 		return storage.TopologyTypeDynamic, nil
 	}
 
-	return "", errors.WithMessagef(ErrParseTopologyType, "could not be parsed to topologyType, rawString:%s", rawString)
+	return "", ErrParseTopologyType.WithMessagef("raw type:%s", rawString)
 }

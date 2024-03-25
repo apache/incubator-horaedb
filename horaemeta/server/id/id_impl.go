@@ -25,6 +25,7 @@ import (
 	"strconv"
 	"sync"
 
+	"github.com/apache/incubator-horaedb-meta/pkg/coderr"
 	"github.com/apache/incubator-horaedb-meta/server/etcdutil"
 	"github.com/pkg/errors"
 	clientv3 "go.etcd.io/etcd/client/v3"
@@ -89,18 +90,18 @@ func (a *AllocatorImpl) Alloc(ctx context.Context) (uint64, error) {
 }
 
 func (a *AllocatorImpl) Collect(_ context.Context, _ uint64) error {
-	return ErrCollectNotSupported
+	return ErrCollectNotSupported.WithMessagef("")
 }
 
 func (a *AllocatorImpl) slowRebaseLocked(ctx context.Context) error {
 	resp, err := a.kv.Get(ctx, a.key)
 	if err != nil {
 		a.logger.Error("get end id", zap.String("resp", fmt.Sprintf("%v", resp)), zap.String("key", a.key))
-		return errors.WithMessagef(err, "get end id failed, key:%s", a.key)
+		return coderr.Wrapf(err, "get end id failed, key:%s", a.key)
 	}
 
 	if n := len(resp.Kvs); n > 1 {
-		return etcdutil.ErrEtcdKVGetResponse.WithCausef("%v", resp.Kvs)
+		return etcdutil.ErrEtcdKVGetResponse.WithMessagef("%v", resp.Kvs)
 	}
 
 	// Key is not exist, create key in kv storage.
@@ -127,9 +128,9 @@ func (a *AllocatorImpl) firstDoRebaseLocked(ctx context.Context) error {
 		Then(opPutEnd).
 		Commit()
 	if err != nil {
-		return errors.WithMessagef(err, "put end id failed, key:%s", a.key)
+		return coderr.Wrapf(err, "put end id failed, key:%s", a.key)
 	} else if !resp.Succeeded {
-		return ErrTxnPutEndID.WithCausef("txn put end id failed, key is exist, key:%s, resp:%v", a.key, resp)
+		return ErrTxnPutEndID.WithMessagef("txn put end id failed, key is exist, key:%s, resp:%v", a.key, resp)
 	}
 
 	a.end = uint64(newEnd)
@@ -140,7 +141,7 @@ func (a *AllocatorImpl) firstDoRebaseLocked(ctx context.Context) error {
 
 func (a *AllocatorImpl) doRebaseLocked(ctx context.Context, currEnd uint64) error {
 	if currEnd < a.base {
-		return ErrAllocID.WithCausef("ID in storage can't less than memory, base:%d, end:%d", a.base, currEnd)
+		return ErrAllocID.WithMessagef("ID in storage can't less than memory, base:%d, end:%d", a.base, currEnd)
 	}
 
 	newEnd := currEnd + uint64(a.allocStep)
@@ -153,9 +154,9 @@ func (a *AllocatorImpl) doRebaseLocked(ctx context.Context, currEnd uint64) erro
 		Then(opPutEnd).
 		Commit()
 	if err != nil {
-		return errors.WithMessagef(err, "put end id failed, key:%s, old value:%d, new value:%d", a.key, currEnd, newEnd)
+		return coderr.Wrapf(err, "put end id failed, key:%s, old value:%d, new value:%d", a.key, currEnd, newEnd)
 	} else if !resp.Succeeded {
-		return ErrTxnPutEndID.WithCausef("txn put end id failed, endEquals failed, key:%s, value:%d, resp:%v", a.key, currEnd, resp)
+		return ErrTxnPutEndID.WithMessagef("txn put end id failed, endEquals failed, key:%s, value:%d, resp:%v", a.key, currEnd, resp)
 	}
 
 	a.base = currEnd

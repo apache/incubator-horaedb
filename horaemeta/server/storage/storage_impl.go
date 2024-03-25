@@ -25,10 +25,10 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/apache/incubator-horaedb-meta/pkg/coderr"
 	"github.com/apache/incubator-horaedb-meta/pkg/log"
 	"github.com/apache/incubator-horaedb-meta/server/etcdutil"
 	"github.com/apache/incubator-horaedb-proto/golang/pkg/clusterpb"
-	"github.com/pkg/errors"
 	clientv3 "go.etcd.io/etcd/client/v3"
 	"go.etcd.io/etcd/client/v3/clientv3util"
 	"go.uber.org/zap"
@@ -67,12 +67,12 @@ func (s *metaStorageImpl) GetCluster(ctx context.Context, clusterID ClusterID) (
 	var cluster Cluster
 	value, err := etcdutil.Get(ctx, s.client, clusterKey)
 	if err != nil {
-		return cluster, errors.WithMessagef(err, "get cluster, clusterID:%d, key:%s", clusterID, clusterKey)
+		return cluster, coderr.Wrapf(err, "get cluster, clusterID:%d, key:%s", clusterID, clusterKey)
 	}
 
 	clusterProto := &clusterpb.Cluster{}
 	if err = proto.Unmarshal([]byte(value), clusterProto); err != nil {
-		return cluster, ErrDecode.WithCausef("decode cluster view, clusterID:%d, err:%v", clusterID, err)
+		return cluster, ErrDecode.WithMessagef("decode cluster view, clusterID:%d, err:%v", clusterID, err)
 	}
 
 	cluster = convertClusterPB(clusterProto)
@@ -88,7 +88,7 @@ func (s *metaStorageImpl) ListClusters(ctx context.Context) (ListClustersResult,
 	do := func(key string, value []byte) error {
 		cluster := &clusterpb.Cluster{}
 		if err := proto.Unmarshal(value, cluster); err != nil {
-			return ErrDecode.WithCausef("decode cluster, key:%s, value:%v, err:%v", key, value, err)
+			return ErrDecode.WithMessagef("decode cluster, key:%s, value:%v, err:%v", key, value, err)
 		}
 
 		clusters = append(clusters, convertClusterPB(cluster))
@@ -97,7 +97,7 @@ func (s *metaStorageImpl) ListClusters(ctx context.Context) (ListClustersResult,
 
 	err := etcdutil.Scan(ctx, s.client, startKey, endKey, rangeLimit, do)
 	if err != nil {
-		return ListClustersResult{}, errors.WithMessagef(err, "etcd scan clusters, start key:%s, end key:%s, range limit:%d", startKey, endKey, rangeLimit)
+		return ListClustersResult{}, coderr.Wrapf(err, "etcd scan clusters, start key:%s, end key:%s, range limit:%d", startKey, endKey, rangeLimit)
 	}
 
 	return ListClustersResult{
@@ -110,7 +110,7 @@ func (s *metaStorageImpl) CreateCluster(ctx context.Context, req CreateClusterRe
 	c := convertClusterToPB(req.Cluster)
 	value, err := proto.Marshal(&c)
 	if err != nil {
-		return ErrEncode.WithCausef("encode cluster，clusterID:%d, err:%v", req.Cluster.ID, err)
+		return ErrEncode.WithMessagef("encode cluster，clusterID:%d, err:%v", req.Cluster.ID, err)
 	}
 
 	key := makeClusterKey(s.rootPath, c.Id)
@@ -124,10 +124,10 @@ func (s *metaStorageImpl) CreateCluster(ctx context.Context, req CreateClusterRe
 		Then(opCreateCluster).
 		Commit()
 	if err != nil {
-		return errors.WithMessagef(err, "create cluster, clusterID:%d, key:%s", req.Cluster.ID, key)
+		return coderr.Wrapf(err, "create cluster, clusterID:%d, key:%s", req.Cluster.ID, key)
 	}
 	if !resp.Succeeded {
-		return ErrCreateClusterAgain.WithCausef("cluster may already exist, clusterID:%d, key:%s, resp:%v", req.Cluster.ID, key, resp)
+		return ErrCreateClusterAgain.WithMessagef("cluster may already exist, clusterID:%d, key:%s, resp:%v", req.Cluster.ID, key, resp)
 	}
 	return nil
 }
@@ -137,7 +137,7 @@ func (s *metaStorageImpl) UpdateCluster(ctx context.Context, req UpdateClusterRe
 	c := convertClusterToPB(req.Cluster)
 	value, err := proto.Marshal(&c)
 	if err != nil {
-		return ErrEncode.WithCausef("encode cluster，clusterID:%d, err:%v", req.Cluster.ID, err)
+		return ErrEncode.WithMessagef("encode cluster，clusterID:%d, err:%v", req.Cluster.ID, err)
 	}
 
 	key := makeClusterKey(s.rootPath, c.Id)
@@ -150,10 +150,10 @@ func (s *metaStorageImpl) UpdateCluster(ctx context.Context, req UpdateClusterRe
 		Then(opUpdateCluster).
 		Commit()
 	if err != nil {
-		return errors.WithMessagef(err, "update cluster, clusterID:%d, key:%s", req.Cluster.ID, key)
+		return coderr.Wrapf(err, "update cluster, clusterID:%d, key:%s", req.Cluster.ID, key)
 	}
 	if !resp.Succeeded {
-		return ErrUpdateCluster.WithCausef("update cluster failed, clusterID:%d, key:%s, resp:%v", req.Cluster.ID, key, resp)
+		return ErrUpdateCluster.WithMessagef("update cluster failed, clusterID:%d, key:%s, resp:%v", req.Cluster.ID, key, resp)
 	}
 	return nil
 }
@@ -163,7 +163,7 @@ func (s *metaStorageImpl) CreateClusterView(ctx context.Context, req CreateClust
 	clusterViewPB := convertClusterViewToPB(req.ClusterView)
 	value, err := proto.Marshal(&clusterViewPB)
 	if err != nil {
-		return ErrEncode.WithCausef("encode cluster view, clusterID:%d, err:%v", clusterViewPB.ClusterId, err)
+		return ErrEncode.WithMessagef("encode cluster view, clusterID:%d, err:%v", clusterViewPB.ClusterId, err)
 	}
 
 	key := makeClusterViewKey(s.rootPath, clusterViewPB.ClusterId, fmtID(clusterViewPB.Version))
@@ -180,10 +180,10 @@ func (s *metaStorageImpl) CreateClusterView(ctx context.Context, req CreateClust
 		Then(opCreateClusterTopology, opCreateClusterTopologyLatestVersion).
 		Commit()
 	if err != nil {
-		return errors.WithMessagef(err, "create cluster view, clusterID:%d, key:%s", clusterViewPB.ClusterId, key)
+		return coderr.Wrapf(err, "create cluster view, clusterID:%d, key:%s", clusterViewPB.ClusterId, key)
 	}
 	if !resp.Succeeded {
-		return ErrCreateClusterViewAgain.WithCausef("cluster view may already exist, clusterID:%d, key:%s, resp:%v", clusterViewPB.ClusterId, key, resp)
+		return ErrCreateClusterViewAgain.WithMessagef("cluster view may already exist, clusterID:%d, key:%s, resp:%v", clusterViewPB.ClusterId, key, resp)
 	}
 	return nil
 }
@@ -193,18 +193,18 @@ func (s *metaStorageImpl) GetClusterView(ctx context.Context, req GetClusterView
 	key := makeClusterViewLatestVersionKey(s.rootPath, uint32(req.ClusterID))
 	version, err := etcdutil.Get(ctx, s.client, key)
 	if err != nil {
-		return viewRes, errors.WithMessagef(err, "get cluster view latest version, clusterID:%d, key:%s", req.ClusterID, key)
+		return viewRes, coderr.Wrapf(err, "get cluster view latest version, clusterID:%d, key:%s", req.ClusterID, key)
 	}
 
 	key = makeClusterViewKey(s.rootPath, uint32(req.ClusterID), version)
 	value, err := etcdutil.Get(ctx, s.client, key)
 	if err != nil {
-		return viewRes, errors.WithMessagef(err, "get cluster view, clusterID:%d, key:%s", req.ClusterID, key)
+		return viewRes, coderr.Wrapf(err, "get cluster view, clusterID:%d, key:%s", req.ClusterID, key)
 	}
 
 	clusterView := &clusterpb.ClusterView{}
 	if err = proto.Unmarshal([]byte(value), clusterView); err != nil {
-		return viewRes, ErrDecode.WithCausef("decode cluster view, clusterID:%d, err:%v", req.ClusterID, err)
+		return viewRes, ErrDecode.WithMessagef("decode cluster view, clusterID:%d, err:%v", req.ClusterID, err)
 	}
 
 	viewRes = GetClusterViewResult{
@@ -218,7 +218,7 @@ func (s *metaStorageImpl) UpdateClusterView(ctx context.Context, req UpdateClust
 
 	value, err := proto.Marshal(&clusterViewPB)
 	if err != nil {
-		return ErrEncode.WithCausef("encode cluster view, clusterID:%d, err:%v", req.ClusterID, err)
+		return ErrEncode.WithMessagef("encode cluster view, clusterID:%d, err:%v", req.ClusterID, err)
 	}
 
 	key := makeClusterViewKey(s.rootPath, uint32(req.ClusterID), fmtID(clusterViewPB.Version))
@@ -234,10 +234,10 @@ func (s *metaStorageImpl) UpdateClusterView(ctx context.Context, req UpdateClust
 		Then(opPutClusterTopology, opPutLatestVersion).
 		Commit()
 	if err != nil {
-		return errors.WithMessagef(err, "put cluster view, clusterID:%d, key:%s", req.ClusterID, key)
+		return coderr.Wrapf(err, "put cluster view, clusterID:%d, key:%s", req.ClusterID, key)
 	}
 	if !resp.Succeeded {
-		return ErrUpdateClusterViewConflict.WithCausef("cluster view may have been modified, clusterID:%d, key:%s, resp:%v", req.ClusterID, key, resp)
+		return ErrUpdateClusterViewConflict.WithMessagef("cluster view may have been modified, clusterID:%d, key:%s, resp:%v", req.ClusterID, key, resp)
 	}
 
 	return nil
@@ -252,7 +252,7 @@ func (s *metaStorageImpl) ListSchemas(ctx context.Context, req ListSchemasReques
 	do := func(key string, value []byte) error {
 		schema := &clusterpb.Schema{}
 		if err := proto.Unmarshal(value, schema); err != nil {
-			return ErrDecode.WithCausef("decode schema, key:%s, value:%v, clusterID:%d, err:%v", key, value, req.ClusterID, err)
+			return ErrDecode.WithMessagef("decode schema, key:%s, value:%v, clusterID:%d, err:%v", key, value, req.ClusterID, err)
 		}
 
 		schemas = append(schemas, convertSchemaPB(schema))
@@ -261,7 +261,7 @@ func (s *metaStorageImpl) ListSchemas(ctx context.Context, req ListSchemasReques
 
 	err := etcdutil.Scan(ctx, s.client, startKey, endKey, rangeLimit, do)
 	if err != nil {
-		return ListSchemasResult{}, errors.WithMessagef(err, "scan schemas, clusterID:%d, start key:%s, end key:%s, range limit:%d", req.ClusterID, startKey, endKey, rangeLimit)
+		return ListSchemasResult{}, coderr.Wrapf(err, "scan schemas, clusterID:%d, start key:%s, end key:%s, range limit:%d", req.ClusterID, startKey, endKey, rangeLimit)
 	}
 
 	return ListSchemasResult{Schemas: schemas}, nil
@@ -272,7 +272,7 @@ func (s *metaStorageImpl) CreateSchema(ctx context.Context, req CreateSchemaRequ
 	schema := convertSchemaToPB(req.Schema)
 	value, err := proto.Marshal(&schema)
 	if err != nil {
-		return ErrDecode.WithCausef("encode schema, clusterID:%d, schemaID:%d, err:%v", req.ClusterID, schema.Id, err)
+		return ErrDecode.WithMessagef("encode schema, clusterID:%d, schemaID:%d, err:%v", req.ClusterID, schema.Id, err)
 	}
 
 	key := makeSchemaKey(s.rootPath, uint32(req.ClusterID), schema.Id)
@@ -286,10 +286,10 @@ func (s *metaStorageImpl) CreateSchema(ctx context.Context, req CreateSchemaRequ
 		Then(opCreateSchema).
 		Commit()
 	if err != nil {
-		return errors.WithMessagef(err, "create schema, clusterID:%d, schemaID:%d, key:%s", req.ClusterID, schema.Id, key)
+		return coderr.Wrapf(err, "create schema, clusterID:%d, schemaID:%d, key:%s", req.ClusterID, schema.Id, key)
 	}
 	if !resp.Succeeded {
-		return ErrCreateSchemaAgain.WithCausef("schema may already exist, clusterID:%d, schemaID:%d, key:%s, resp:%v", req.ClusterID, schema.Id, key, resp)
+		return ErrCreateSchemaAgain.WithMessagef("schema may already exist, clusterID:%d, schemaID:%d, key:%s, resp:%v", req.ClusterID, schema.Id, key, resp)
 	}
 	return nil
 }
@@ -299,7 +299,7 @@ func (s *metaStorageImpl) CreateTable(ctx context.Context, req CreateTableReques
 	table := convertTableToPB(req.Table)
 	value, err := proto.Marshal(&table)
 	if err != nil {
-		return ErrEncode.WithCausef("encode table, clusterID:%d, schemaID:%d, tableID:%d, err:%v", req.ClusterID, req.Table.ID, table.Id, err)
+		return ErrEncode.WithMessagef("encode table, clusterID:%d, schemaID:%d, tableID:%d, err:%v", req.ClusterID, req.Table.ID, table.Id, err)
 	}
 
 	key := makeTableKey(s.rootPath, uint32(req.ClusterID), uint32(req.SchemaID), table.Id)
@@ -316,10 +316,10 @@ func (s *metaStorageImpl) CreateTable(ctx context.Context, req CreateTableReques
 		Then(opCreateTable, opCreateNameToID).
 		Commit()
 	if err != nil {
-		return errors.WithMessagef(err, "create table, clusterID:%d, schemaID:%d, tableID:%d, key:%s", req.ClusterID, req.SchemaID, table.Id, key)
+		return coderr.Wrapf(err, "create table, clusterID:%d, schemaID:%d, tableID:%d, key:%s", req.ClusterID, req.SchemaID, table.Id, key)
 	}
 	if !resp.Succeeded {
-		return ErrCreateTableAgain.WithCausef("table may already exist, clusterID:%d, schemaID:%d, tableID:%d, key:%s, resp:%v", req.ClusterID, req.SchemaID, table.Id, key, resp)
+		return ErrCreateTableAgain.WithMessagef("table may already exist, clusterID:%d, schemaID:%d, tableID:%d, key:%s, resp:%v", req.ClusterID, req.SchemaID, table.Id, key, resp)
 	}
 	return nil
 }
@@ -327,28 +327,29 @@ func (s *metaStorageImpl) CreateTable(ctx context.Context, req CreateTableReques
 func (s *metaStorageImpl) GetTable(ctx context.Context, req GetTableRequest) (GetTableResult, error) {
 	var res GetTableResult
 	value, err := etcdutil.Get(ctx, s.client, makeNameToIDKey(s.rootPath, uint32(req.ClusterID), uint32(req.SchemaID), req.TableName))
-	if err == etcdutil.ErrEtcdKVGetNotFound {
+	// FIXME: this check is wrong because the `ErrEtcdKVGetNotFound`'s code is not special.
+	if coderr.Is(err, etcdutil.ErrEtcdKVGetNotFound.Code()) {
 		res.Exists = false
 		return res, nil
 	}
 	if err != nil {
-		return res, errors.WithMessagef(err, "get table id, clusterID:%d, schemaID:%d, table name:%s", req.ClusterID, req.SchemaID, req.TableName)
+		return res, coderr.Wrapf(err, "get table id, clusterID:%d, schemaID:%d, table name:%s", req.ClusterID, req.SchemaID, req.TableName)
 	}
 
 	tableID, err := strconv.ParseUint(value, 10, 64)
 	if err != nil {
-		return res, errors.WithMessagef(err, "string to int failed")
+		return res, coderr.Wrapf(err, "string to int failed")
 	}
 
 	key := makeTableKey(s.rootPath, uint32(req.ClusterID), uint32(req.SchemaID), tableID)
 	value, err = etcdutil.Get(ctx, s.client, key)
 	if err != nil {
-		return res, errors.WithMessagef(err, "get table, clusterID:%d, schemaID:%d, tableID:%d, key:%s", req.ClusterID, req.SchemaID, tableID, key)
+		return res, coderr.Wrapf(err, "get table, clusterID:%d, schemaID:%d, tableID:%d, key:%s", req.ClusterID, req.SchemaID, tableID, key)
 	}
 
 	table := &clusterpb.Table{}
 	if err = proto.Unmarshal([]byte(value), table); err != nil {
-		return res, ErrDecode.WithCausef("decode table, clusterID:%d, schemaID:%d, tableID:%d, err:%v", req.ClusterID, req.SchemaID, tableID, err)
+		return res, ErrDecode.WithMessagef("decode table, clusterID:%d, schemaID:%d, tableID:%d, err:%v", req.ClusterID, req.SchemaID, tableID, err)
 	}
 
 	res = GetTableResult{
@@ -367,7 +368,7 @@ func (s *metaStorageImpl) ListTables(ctx context.Context, req ListTableRequest) 
 	do := func(key string, value []byte) error {
 		tablePB := &clusterpb.Table{}
 		if err := proto.Unmarshal(value, tablePB); err != nil {
-			return ErrDecode.WithCausef("decode table, key:%s, value:%v, clusterID:%d, schemaID:%d, err:%v", key, value, req.ClusterID, req.SchemaID, err)
+			return ErrDecode.WithMessagef("decode table, key:%s, value:%v, clusterID:%d, schemaID:%d, err:%v", key, value, req.ClusterID, req.SchemaID, err)
 		}
 		table := convertTablePB(tablePB)
 		tables = append(tables, table)
@@ -375,7 +376,7 @@ func (s *metaStorageImpl) ListTables(ctx context.Context, req ListTableRequest) 
 	}
 	err := etcdutil.Scan(ctx, s.client, startKey, endKey, rangeLimit, do)
 	if err != nil {
-		return ListTablesResult{}, errors.WithMessagef(err, "scan tables, clusterID:%d, schemaID:%d, start key:%s, end key:%s, range limit:%d", req.ClusterID, req.SchemaID, startKey, endKey, rangeLimit)
+		return ListTablesResult{}, coderr.Wrapf(err, "scan tables, clusterID:%d, schemaID:%d, start key:%s, end key:%s, range limit:%d", req.ClusterID, req.SchemaID, startKey, endKey, rangeLimit)
 	}
 
 	return ListTablesResult{
@@ -388,12 +389,12 @@ func (s *metaStorageImpl) DeleteTable(ctx context.Context, req DeleteTableReques
 
 	value, err := etcdutil.Get(ctx, s.client, nameKey)
 	if err != nil {
-		return errors.WithMessagef(err, "get table id, clusterID:%d, schemaID:%d, table name:%s", req.ClusterID, req.SchemaID, req.TableName)
+		return coderr.Wrapf(err, "get table id, clusterID:%d, schemaID:%d, table name:%s", req.ClusterID, req.SchemaID, req.TableName)
 	}
 
 	tableID, err := strconv.ParseUint(value, 10, 64)
 	if err != nil {
-		return errors.WithMessagef(err, "string to int failed")
+		return coderr.Wrapf(err, "string to int failed")
 	}
 
 	key := makeTableKey(s.rootPath, uint32(req.ClusterID), uint32(req.SchemaID), tableID)
@@ -409,10 +410,10 @@ func (s *metaStorageImpl) DeleteTable(ctx context.Context, req DeleteTableReques
 		Then(opDeleteNameToID, opDeleteTable).
 		Commit()
 	if err != nil {
-		return errors.WithMessagef(err, "delete table, clusterID:%d, schemaID:%d, tableID:%d, tableName:%s", req.ClusterID, req.SchemaID, tableID, req.TableName)
+		return coderr.Wrapf(err, "delete table, clusterID:%d, schemaID:%d, tableID:%d, tableName:%s", req.ClusterID, req.SchemaID, tableID, req.TableName)
 	}
 	if !resp.Succeeded {
-		return ErrDeleteTableAgain.WithCausef("table may have been deleted, clusterID:%d, schemaID:%d, tableID:%d, tableName:%s", req.ClusterID, req.SchemaID, tableID, req.TableName)
+		return ErrDeleteTableAgain.WithMessagef("table may have been deleted, clusterID:%d, schemaID:%d, tableID:%d, tableName:%s", req.ClusterID, req.SchemaID, tableID, req.TableName)
 	}
 
 	return nil
@@ -430,10 +431,10 @@ func (s *metaStorageImpl) AssignTableToShard(ctx context.Context, req AssignTabl
 		Then(opCreateAssignTable).
 		Commit()
 	if err != nil {
-		return errors.WithMessagef(err, "create assign table, clusterID:%d, schemaID:%d, key:%s", req.ClusterID, req.ShardID, key)
+		return coderr.Wrapf(err, "create assign table, clusterID:%d, schemaID:%d, key:%s", req.ClusterID, req.ShardID, key)
 	}
 	if !resp.Succeeded {
-		return ErrCreateSchemaAgain.WithCausef("assign table may already exist, clusterID:%d, schemaID:%d, key:%s, resp:%v", req.ClusterID, req.SchemaID, key, resp)
+		return ErrCreateSchemaAgain.WithMessagef("assign table may already exist, clusterID:%d, schemaID:%d, key:%s, resp:%v", req.ClusterID, req.SchemaID, key, resp)
 	}
 
 	return nil
@@ -450,10 +451,10 @@ func (s *metaStorageImpl) DeleteTableAssignedShard(ctx context.Context, req Dele
 		Then(opDeleteAssignTable).
 		Commit()
 	if err != nil {
-		return errors.WithMessagef(err, "delete assign table, clusterID:%d, schemaID:%d, tableName:%s", req.ClusterID, req.SchemaID, req.TableName)
+		return coderr.Wrapf(err, "delete assign table, clusterID:%d, schemaID:%d, tableName:%s", req.ClusterID, req.SchemaID, req.TableName)
 	}
 	if !resp.Succeeded {
-		return ErrDeleteTableAgain.WithCausef("assign table may have been deleted, clusterID:%d, schemaID:%d, tableName:%s", req.ClusterID, req.SchemaID, req.TableName)
+		return ErrDeleteTableAgain.WithMessagef("assign table may have been deleted, clusterID:%d, schemaID:%d, tableName:%s", req.ClusterID, req.SchemaID, req.TableName)
 	}
 
 	return nil
@@ -479,7 +480,7 @@ func (s *metaStorageImpl) ListTableAssignedShard(ctx context.Context, req ListAs
 	}
 
 	if err := etcdutil.ScanWithPrefix(ctx, s.client, key, do); err != nil {
-		return ListTableAssignedShardResult{}, errors.WithMessagef(err, "scan tables, clusterID:%d, schemaID:%d, prefix key:%s, range limit:%d", req.ClusterID, req.SchemaID, key, rangeLimit)
+		return ListTableAssignedShardResult{}, coderr.Wrapf(err, "scan tables, clusterID:%d, schemaID:%d, prefix key:%s, range limit:%d", req.ClusterID, req.SchemaID, key, rangeLimit)
 	}
 
 	return ListTableAssignedShardResult{TableAssigns: tableAssigns}, nil
@@ -490,7 +491,7 @@ func (s *metaStorageImpl) createNShardViews(ctx context.Context, clusterID Clust
 		shardViewPB := convertShardViewToPB(shardView)
 		value, err := proto.Marshal(&shardViewPB)
 		if err != nil {
-			return ErrEncode.WithCausef("encode shard clusterView, clusterID:%d, shardID:%d, err:%v", clusterID, shardView.ShardID, err)
+			return ErrEncode.WithMessagef("encode shard clusterView, clusterID:%d, shardID:%d, err:%v", clusterID, shardView.ShardID, err)
 		}
 
 		key := makeShardViewKey(s.rootPath, uint32(clusterID), uint32(shardView.ShardID), fmtID(shardView.Version))
@@ -506,10 +507,10 @@ func (s *metaStorageImpl) createNShardViews(ctx context.Context, clusterID Clust
 		Then(opCreates...).
 		Commit()
 	if err != nil {
-		return errors.WithMessagef(err, "create shard view, clusterID:%d", clusterID)
+		return coderr.Wrapf(err, "create shard view, clusterID:%d", clusterID)
 	}
 	if !resp.Succeeded {
-		return ErrCreateShardViewAgain.WithCausef("shard view may already exist, clusterID:%d, resp:%v", clusterID, resp)
+		return ErrCreateShardViewAgain.WithMessagef("shard view may already exist, clusterID:%d, resp:%v", clusterID, resp)
 	}
 
 	return nil
@@ -541,33 +542,33 @@ func (s *metaStorageImpl) ListShardViews(ctx context.Context, req ListShardViews
 	prefix := makeShardViewVersionKey(s.rootPath, uint32(req.ClusterID))
 	keys, err := etcdutil.List(ctx, s.client, prefix)
 	if err != nil {
-		return listRes, errors.WithMessagef(err, "list shard view, clusterID:%d", req.ClusterID)
+		return listRes, coderr.Wrapf(err, "list shard view, clusterID:%d", req.ClusterID)
 	}
 	for _, key := range keys {
 		if strings.HasSuffix(key, latestVersion) {
 			shardIDKey, err := decodeShardViewVersionKey(key)
 			if err != nil {
-				return listRes, errors.WithMessagef(err, "list shard view latest version, clusterID:%d, shardIDKey:%s, key:%s", req.ClusterID, shardIDKey, key)
+				return listRes, coderr.Wrapf(err, "list shard view latest version, clusterID:%d, shardIDKey:%s, key:%s", req.ClusterID, shardIDKey, key)
 			}
 			shardID, err := strconv.ParseUint(shardIDKey, 10, 32)
 			if err != nil {
-				return listRes, errors.WithMessagef(err, "list shard view latest version, clusterID:%d, shardID:%d, key:%s", req.ClusterID, shardID, key)
+				return listRes, coderr.Wrapf(err, "list shard view latest version, clusterID:%d, shardID:%d, key:%s", req.ClusterID, shardID, key)
 			}
 
 			version, err := etcdutil.Get(ctx, s.client, key)
 			if err != nil {
-				return listRes, errors.WithMessagef(err, "list shard view latest version, clusterID:%d, shardID:%d, key:%s", req.ClusterID, shardID, key)
+				return listRes, coderr.Wrapf(err, "list shard view latest version, clusterID:%d, shardID:%d, key:%s", req.ClusterID, shardID, key)
 			}
 
 			key = makeShardViewKey(s.rootPath, uint32(req.ClusterID), uint32(shardID), version)
 			value, err := etcdutil.Get(ctx, s.client, key)
 			if err != nil {
-				return listRes, errors.WithMessagef(err, "list shard view, clusterID:%d, shardID:%d, key:%s", req.ClusterID, shardID, key)
+				return listRes, coderr.Wrapf(err, "list shard view, clusterID:%d, shardID:%d, key:%s", req.ClusterID, shardID, key)
 			}
 
 			shardViewPB := &clusterpb.ShardView{}
 			if err = proto.Unmarshal([]byte(value), shardViewPB); err != nil {
-				return listRes, ErrDecode.WithCausef("decode shard view, clusterID:%d, shardID:%d, err:%v", req.ClusterID, shardID, err)
+				return listRes, ErrDecode.WithMessagef("decode shard view, clusterID:%d, shardID:%d, err:%v", req.ClusterID, shardID, err)
 			}
 			shardView := convertShardViewPB(shardViewPB)
 			shardViews = append(shardViews, shardView)
@@ -584,7 +585,7 @@ func (s *metaStorageImpl) UpdateShardView(ctx context.Context, req UpdateShardVi
 	shardViewPB := convertShardViewToPB(req.ShardView)
 	value, err := proto.Marshal(&shardViewPB)
 	if err != nil {
-		return ErrEncode.WithCausef("encode shard view, clusterID:%d, shardID:%d, err:%v", req.ClusterID, req.ShardView.ShardID, err)
+		return ErrEncode.WithMessagef("encode shard view, clusterID:%d, shardID:%d, err:%v", req.ClusterID, req.ShardView.ShardID, err)
 	}
 
 	key := makeShardViewKey(s.rootPath, uint32(req.ClusterID), shardViewPB.ShardId, fmtID(shardViewPB.GetVersion()))
@@ -599,10 +600,10 @@ func (s *metaStorageImpl) UpdateShardView(ctx context.Context, req UpdateShardVi
 		Then(opPutLatestVersion, opPutShardTopology).
 		Commit()
 	if err != nil {
-		return errors.WithMessagef(err, "fail to put shard clusterView, clusterID:%d, shardID:%d, key:%s", req.ClusterID, shardViewPB.ShardId, key)
+		return coderr.Wrapf(err, "fail to put shard clusterView, clusterID:%d, shardID:%d, key:%s", req.ClusterID, shardViewPB.ShardId, key)
 	}
 	if !resp.Succeeded {
-		return ErrUpdateShardViewConflict.WithCausef("shard view may have been modified, clusterID:%d, shardID:%d, key:%s, resp:%v", req.ClusterID, shardViewPB.ShardId, key, resp)
+		return ErrUpdateShardViewConflict.WithMessagef("shard view may have been modified, clusterID:%d, shardID:%d, key:%s, resp:%v", req.ClusterID, shardViewPB.ShardId, key, resp)
 	}
 
 	// Try to remove expired shard view.
@@ -625,7 +626,7 @@ func (s *metaStorageImpl) ListNodes(ctx context.Context, req ListNodesRequest) (
 	do := func(key string, value []byte) error {
 		nodePB := &clusterpb.Node{}
 		if err := proto.Unmarshal(value, nodePB); err != nil {
-			return ErrDecode.WithCausef("decode node, key:%s, value:%v, clusterID:%d, err:%v", key, value, req.ClusterID, err)
+			return ErrDecode.WithMessagef("decode node, key:%s, value:%v, clusterID:%d, err:%v", key, value, req.ClusterID, err)
 		}
 		node := convertNodePB(nodePB)
 		nodes = append(nodes, node)
@@ -634,7 +635,7 @@ func (s *metaStorageImpl) ListNodes(ctx context.Context, req ListNodesRequest) (
 
 	err := etcdutil.Scan(ctx, s.client, startKey, endKey, rangeLimit, do)
 	if err != nil {
-		return ListNodesResult{}, errors.WithMessagef(err, "scan nodes, clusterID:%d, start key:%s, end key:%s, range limit:%d", req.ClusterID, startKey, endKey, rangeLimit)
+		return ListNodesResult{}, coderr.Wrapf(err, "scan nodes, clusterID:%d, start key:%s, end key:%s, range limit:%d", req.ClusterID, startKey, endKey, rangeLimit)
 	}
 
 	return ListNodesResult{
@@ -649,12 +650,12 @@ func (s *metaStorageImpl) CreateOrUpdateNode(ctx context.Context, req CreateOrUp
 
 	value, err := proto.Marshal(&nodePB)
 	if err != nil {
-		return ErrEncode.WithCausef("encode node, clusterID:%d, node name:%s, err:%v", req.ClusterID, req.Node.Name, err)
+		return ErrEncode.WithMessagef("encode node, clusterID:%d, node name:%s, err:%v", req.ClusterID, req.Node.Name, err)
 	}
 
 	_, err = s.client.Put(ctx, key, string(value))
 	if err != nil {
-		return errors.WithMessagef(err, "create or update node, clusterID:%d, node name:%s, key:%s", req.ClusterID, req.Node.Name, key)
+		return coderr.Wrapf(err, "create or update node, clusterID:%d, node name:%s, key:%s", req.ClusterID, req.Node.Name, key)
 	}
 
 	return nil

@@ -25,6 +25,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/apache/incubator-horaedb-meta/pkg/coderr"
 	"github.com/apache/incubator-horaedb-meta/server/id"
 	"github.com/apache/incubator-horaedb-meta/server/storage"
 	"github.com/pkg/errors"
@@ -145,20 +146,19 @@ func (m *TableManagerImpl) CreateTable(ctx context.Context, schemaName string, t
 	if err != nil {
 		return emptyTable, errors.WithMessage(err, "get table")
 	}
-
 	if exists {
-		return emptyTable, errors.WithMessagef(ErrTableAlreadyExists, "tableName:%s", tableName)
+		return emptyTable, ErrTableAlreadyExists.WithMessagef("table to create already exist, tableName:%s", tableName)
 	}
 
 	// Create table in storage.
 	schema, ok := m.schemas[schemaName]
 	if !ok {
-		return emptyTable, ErrSchemaNotFound.WithCausef("schema name:%s", schemaName)
+		return emptyTable, ErrSchemaNotFound.WithMessagef("create table, schema:%s", schemaName)
 	}
 
 	id, err := m.tableIDAlloc.Alloc(ctx)
 	if err != nil {
-		return emptyTable, errors.WithMessagef(err, "alloc table id, table name:%s", tableName)
+		return emptyTable, coderr.Wrapf(err, "alloc table id, table name:%s", tableName)
 	}
 
 	table := storage.Table{
@@ -173,9 +173,8 @@ func (m *TableManagerImpl) CreateTable(ctx context.Context, schemaName string, t
 		SchemaID:  schema.ID,
 		Table:     table,
 	})
-
 	if err != nil {
-		return emptyTable, errors.WithMessage(err, "storage create table")
+		return emptyTable, coderr.Wrapf(err, "storage create table failed")
 	}
 
 	// Update table in memory.
@@ -214,7 +213,7 @@ func (m *TableManagerImpl) DropTable(ctx context.Context, schemaName string, tab
 		TableName: tableName,
 	})
 	if err != nil {
-		return errors.WithMessagef(err, "storage delete table")
+		return coderr.Wrapf(err, "storage delete table")
 	}
 
 	tables := m.schemaTables[schema.ID]
@@ -341,7 +340,7 @@ func (m *TableManagerImpl) getTable(schemaName, tableName string) (storage.Table
 	schema, ok := m.schemas[schemaName]
 	var emptyTable storage.Table
 	if !ok {
-		return emptyTable, false, ErrSchemaNotFound.WithCausef("schema name", schemaName)
+		return emptyTable, false, ErrSchemaNotFound.WithMessagef("get table, schema:%s", schemaName)
 	}
 
 	tables, ok := m.schemaTables[schema.ID]
@@ -356,7 +355,7 @@ func (m *TableManagerImpl) getTable(schemaName, tableName string) (storage.Table
 func (m *TableManagerImpl) getTables(schemaName string, tableNames []string) ([]storage.Table, error) {
 	schema, ok := m.schemas[schemaName]
 	if !ok {
-		return []storage.Table{}, ErrSchemaNotFound.WithCausef("schema name", schemaName)
+		return []storage.Table{}, ErrSchemaNotFound.WithMessagef("get tables, schema:%s", schemaName)
 	}
 
 	schemaTables, ok := m.schemaTables[schema.ID]

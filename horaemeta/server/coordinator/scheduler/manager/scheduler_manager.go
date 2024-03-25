@@ -269,7 +269,7 @@ func (m *schedulerManagerImpl) UpdateEnableSchedule(ctx context.Context, enable 
 	defer m.lock.Unlock()
 
 	if m.topologyType != storage.TopologyTypeDynamic {
-		return ErrInvalidTopologyType.WithCausef("deploy mode could only update when topology type is dynamic")
+		return ErrInvalidTopologyType.WithMessagef("deploy mode could only update when topology type is dynamic")
 	}
 
 	m.enableSchedule = enable
@@ -285,7 +285,7 @@ func (m *schedulerManagerImpl) GetEnableSchedule(_ context.Context) (bool, error
 	defer m.lock.RUnlock()
 
 	if m.topologyType != storage.TopologyTypeDynamic {
-		return false, ErrInvalidTopologyType.WithCausef("deploy mode could only get when topology type is dynamic")
+		return false, ErrInvalidTopologyType.WithMessagef("deploy mode could only get when topology type is dynamic")
 	}
 
 	return m.enableSchedule, nil

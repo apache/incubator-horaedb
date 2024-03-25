@@ -22,8 +22,8 @@ package id
 import "github.com/apache/incubator-horaedb-meta/pkg/coderr"
 
 var (
-	ErrTxnPutEndID         = coderr.NewCodeError(coderr.Internal, "put end id in txn")
-	ErrAllocID             = coderr.NewCodeError(coderr.Internal, "alloc id")
-	ErrCollectID           = coderr.NewCodeError(coderr.Internal, "collect invalid id")
-	ErrCollectNotSupported = coderr.NewCodeError(coderr.Internal, "collect is not supported")
+	ErrTxnPutEndID         = coderr.NewCodeErrorDef(coderr.Internal, "put end id in txn")
+	ErrAllocID             = coderr.NewCodeErrorDef(coderr.Internal, "alloc id")
+	ErrCollectID           = coderr.NewCodeErrorDef(coderr.Internal, "collect invalid id")
+	ErrCollectNotSupported = coderr.NewCodeErrorDef(coderr.Internal, "collect is not supported")
 )

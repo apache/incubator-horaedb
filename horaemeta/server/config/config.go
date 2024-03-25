@@ -27,6 +27,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/apache/incubator-horaedb-meta/pkg/coderr"
 	"github.com/apache/incubator-horaedb-meta/pkg/log"
 	"github.com/caarlos0/env/v6"
 	"github.com/pelletier/go-toml/v2"
@@ -258,7 +259,7 @@ func (p *Parser) Parse(arguments []string) (*Config, error) {
 		if errors.Is(err, flag.ErrHelp) {
 			return nil, ErrHelpRequested.WithCause(err)
 		}
-		return nil, ErrInvalidCommandArgs.WithCausef("fail to parse flag arguments:%v, err:%v", arguments, err)
+		return nil, ErrInvalidCommandArgs.WithMessagef("fail to parse flag arguments:%v, err:%v", arguments, err)
 	}
 	return p.cfg, nil
 }
@@ -387,7 +388,7 @@ func (p *Parser) ParseConfigFromToml() error {
 	err = toml.Unmarshal(file, p.cfg)
 	if err != nil {
 		log.Error("err", zap.Error(err))
-		return errors.WithMessagef(err, "unmarshal toml config, configFile:%s", p.configFilePath)
+		return coderr.Wrapf(err, "unmarshal toml config, configFile:%s", p.configFilePath)
 	}
 
 	return nil
@@ -396,7 +397,7 @@ func (p *Parser) ParseConfigFromToml() error {
 func (p *Parser) ParseConfigFromEnv() error {
 	err := env.Parse(p.cfg)
 	if err != nil {
-		return errors.WithMessagef(err, "parse config from env variables")
+		return coderr.Wrapf(err, "parse config from env variables")
 	}
 	return nil
 }

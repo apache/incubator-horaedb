@@ -28,7 +28,6 @@ import (
 	"github.com/apache/incubator-horaedb-meta/pkg/log"
 	"github.com/apache/incubator-horaedb-meta/server/etcdutil"
 	"github.com/apache/incubator-horaedb-proto/golang/pkg/metastoragepb"
-	"github.com/pkg/errors"
 	"go.etcd.io/etcd/api/v3/mvccpb"
 	clientv3 "go.etcd.io/etcd/client/v3"
 	"go.uber.org/zap"
@@ -82,7 +81,7 @@ func (m *Member) getLeader(ctx context.Context) (*getLeaderResp, error) {
 		return nil, ErrGetLeader.WithCause(err)
 	}
 	if len(resp.Kvs) > 1 {
-		return nil, ErrMultipleLeader
+		return nil, ErrMultipleLeader.WithMessagef("number of leader keys:%d", len(resp.Kvs))
 	}
 	if len(resp.Kvs) == 0 {
 		return &getLeaderResp{
@@ -109,7 +108,7 @@ func (m *Member) GetLeaderAddr(_ context.Context) (GetLeaderAddrResp, error) {
 		return GetLeaderAddrResp{
 			LeaderEndpoint: "",
 			IsLocal:        false,
-		}, errors.WithMessage(ErrGetLeader, "no leader found")
+		}, ErrGetLeader.WithMessagef("leader is not set")
 	}
 	return GetLeaderAddrResp{
 		LeaderEndpoint: m.leader.Endpoint,
@@ -209,7 +208,7 @@ func (m *Member) CampaignAndKeepLeader(ctx context.Context, leaseTTLSec int64, l
 	if err != nil {
 		return ErrTxnPutLeader.WithCause(err)
 	} else if !resp.Succeeded {
-		return ErrTxnPutLeader.WithCausef("txn put leader failed, resp:%v", resp)
+		return ErrTxnPutLeader.WithMessagef("txn put leader failed, resp:%v", resp)
 	}
 
 	m.logger.Info("[SetLeader]", zap.String("leader-key", m.leaderKey), zap.String("leader", m.Name))

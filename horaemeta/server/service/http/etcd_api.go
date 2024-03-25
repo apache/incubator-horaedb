@@ -66,14 +66,12 @@ func (a *EtcdAPI) addMember(req *http.Request) apiFuncResult {
 	var addMemberRequest AddMemberRequest
 	err := json.NewDecoder(req.Body).Decode(&addMemberRequest)
 	if err != nil {
-		log.Error("decode request body failed", zap.Error(err))
-		return errResult(ErrParseRequest, err.Error())
+		return errResult(ErrParseRequest.WithCause(err))
 	}
 
 	resp, err := a.etcdClient.MemberAdd(req.Context(), addMemberRequest.MemberAddrs)
 	if err != nil {
-		log.Error("member add as learner failed", zap.Error(err))
-		return errResult(ErrAddLearner, err.Error())
+		return errResult(ErrAddLearner.WithCause(err))
 	}
 
 	return okResult(resp)
@@ -82,8 +80,7 @@ func (a *EtcdAPI) addMember(req *http.Request) apiFuncResult {
 func (a *EtcdAPI) getMember(req *http.Request) apiFuncResult {
 	resp, err := a.etcdClient.MemberList(req.Context())
 	if err != nil {
-		log.Error("list member failed", zap.Error(err))
-		return errResult(ErrListMembers, err.Error())
+		return errResult(ErrListMembers.WithCause(err))
 	}
 
 	return okResult(resp)
@@ -93,112 +90,100 @@ func (a *EtcdAPI) updateMember(req *http.Request) apiFuncResult {
 	var updateMemberRequest UpdateMemberRequest
 	err := json.NewDecoder(req.Body).Decode(&updateMemberRequest)
 	if err != nil {
-		log.Error("decode request body failed", zap.Error(err))
-		return errResult(ErrParseTopology, err.Error())
+		return errResult(ErrParseTopology.WithCause(err))
 	}
 
 	memberListResp, err := a.etcdClient.MemberList(req.Context())
 	if err != nil {
-		log.Error("list members failed", zap.Error(err))
-		return errResult(ErrListMembers, err.Error())
+		return errResult(ErrListMembers.WithCause(err))
 	}
 
 	for _, member := range memberListResp.Members {
 		if member.Name == updateMemberRequest.OldMemberName {
 			_, err := a.etcdClient.MemberUpdate(req.Context(), member.ID, updateMemberRequest.NewMemberAddr)
 			if err != nil {
-				log.Error("remove learner failed", zap.Error(err))
-				return errResult(ErrRemoveMembers, err.Error())
+				return errResult(ErrRemoveMembers.WithCause(err))
 			}
 			return okResult("ok")
 		}
 	}
 
-	return errResult(ErrGetMember, fmt.Sprintf("member not found, member name: %s", updateMemberRequest.OldMemberName))
+	return errResult(ErrGetMember.WithMessagef("member not found, member name:%s", updateMemberRequest.OldMemberName))
 }
 
 func (a *EtcdAPI) removeMember(req *http.Request) apiFuncResult {
 	var removeMemberRequest RemoveMemberRequest
 	err := json.NewDecoder(req.Body).Decode(&removeMemberRequest)
 	if err != nil {
-		log.Error("decode request body failed", zap.Error(err))
-		return errResult(ErrParseRequest, err.Error())
+		return errResult(ErrParseRequest.WithCause(err))
 	}
 
 	memberListResp, err := a.etcdClient.MemberList(req.Context())
 	if err != nil {
-		log.Error("list members failed", zap.Error(err))
-		return errResult(ErrListMembers, err.Error())
+		return errResult(ErrListMembers.WithCause(err))
 	}
 
 	for _, member := range memberListResp.Members {
 		if member.Name == removeMemberRequest.MemberName {
 			_, err := a.etcdClient.MemberRemove(req.Context(), member.ID)
 			if err != nil {
-				log.Error("remove learner failed", zap.Error(err))
-				return errResult(ErrRemoveMembers, err.Error())
+				return errResult(ErrRemoveMembers.WithCause(err))
 			}
 
 			return okResult("ok")
 		}
 	}
 
-	return errResult(ErrGetMember, fmt.Sprintf("member not found, member name: %s", removeMemberRequest.MemberName))
+	return errResult(ErrGetMember.WithMessagef("member not found, member name:%s", removeMemberRequest.MemberName))
 }
 
 func (a *EtcdAPI) promoteLearner(req *http.Request) apiFuncResult {
 	var promoteLearnerRequest PromoteLearnerRequest
 	err := json.NewDecoder(req.Body).Decode(&promoteLearnerRequest)
 	if err != nil {
-		log.Error("decode request body failed", zap.Error(err))
-		return errResult(ErrParseRequest, err.Error())
+		return errResult(ErrParseRequest.WithCause(err))
 	}
 
 	memberListResp, err := a.etcdClient.MemberList(req.Context())
 	if err != nil {
-		log.Error("list members failed", zap.Error(err))
-		return errResult(ErrListMembers, err.Error())
+		return errResult(ErrListMembers.WithCause(err))
 	}
 
 	for _, member := range memberListResp.Members {
 		if member.Name == promoteLearnerRequest.LearnerName {
 			_, err := a.etcdClient.MemberPromote(req.Context(), member.ID)
 			if err != nil {
-				log.Error("remove learner failed", zap.Error(err))
-				return errResult(ErrRemoveMembers, err.Error())
+				return errResult(ErrRemoveMembers.WithCause(err))
 			}
 			return okResult("ok")
 		}
 	}
 
-	return errResult(ErrGetMember, fmt.Sprintf("learner not found, learner name: %s", promoteLearnerRequest.LearnerName))
+	return errResult(ErrGetMember.WithMessagef("learner not found, learner name:%s", promoteLearnerRequest.LearnerName))
 }
 
 func (a *EtcdAPI) moveLeader(req *http.Request) apiFuncResult {
 	var moveLeaderRequest MoveLeaderRequest
 	err := json.NewDecoder(req.Body).Decode(&moveLeaderRequest)
 	if err != nil {
-		log.Error("decode request body failed", zap.Error(err))
-		return errResult(ErrParseRequest, err.Error())
+		return errResult(ErrParseRequest.WithCause(err))
 	}
 
 	memberListResp, err := a.etcdClient.MemberList(req.Context())
 	if err != nil {
-		log.Error("list members failed", zap.Error(err))
-		return errResult(ErrListMembers, err.Error())
+		return errResult(ErrListMembers.WithCause(err))
 	}
 
 	for _, member := range memberListResp.Members {
 		if member.Name == moveLeaderRequest.MemberName {
 			moveLeaderResp, err := a.etcdClient.MoveLeader(req.Context(), member.ID)
 			if err != nil {
-				log.Error("remove learner failed", zap.Error(err))
-				return errResult(ErrRemoveMembers, err.Error())
+				return errResult(ErrRemoveMembers.WithCause(err))
 			}
 			log.Info("move leader", zap.String("moveLeaderResp", fmt.Sprintf("%v", moveLeaderResp)))
 			return okResult("ok")
 		}
 	}
 
-	return errResult(ErrGetMember, fmt.Sprintf("member not found, member name: %s", moveLeaderRequest.MemberName))
+	return errResult(ErrGetMember.WithMessagef("member not found, member name:%s", moveLeaderRequest.MemberName))
 }

@@ -23,6 +23,7 @@ import (
 	"context"
 	"sync"
 
+	"github.com/apache/incubator-horaedb-meta/pkg/coderr"
 	"github.com/apache/incubator-horaedb-meta/pkg/log"
 	"github.com/apache/incubator-horaedb-meta/server/cluster/metadata"
 	"github.com/apache/incubator-horaedb-meta/server/coordinator/eventdispatch"
@@ -119,40 +120,40 @@ func NewProcedure(params ProcedureParams) (procedure.Procedure, error) {
 
 func buildRelatedVersionInfo(params ProcedureParams) (procedure.RelatedVersionInfo, error) {
 	shardViewWithVersion := make(map[storage.ShardID]uint64, 0)
+	var info procedure.RelatedVersionInfo
 	shardView, exists := params.ClusterSnapshot.Topology.ShardViewsMapping[params.ShardID]
 	if !exists {
-		return procedure.RelatedVersionInfo{}, errors.WithMessagef(metadata.ErrShardNotFound, "shard not found in topology, shardID:%d", params.ShardID)
+		return info, metadata.ErrShardNotFound.WithMessagef("build related version info, shardID:%d", params.ShardID)
 	}
 	shardViewWithVersion[params.ShardID] = shardView.Version
 
-	relatedVersionInfo := procedure.RelatedVersionInfo{
+	info = procedure.RelatedVersionInfo{
 		ClusterID:        params.ClusterSnapshot.Topology.ClusterView.ClusterID,
 		ShardWithVersion: shardViewWithVersion,
 		ClusterVersion:   params.ClusterSnapshot.Topology.ClusterView.Version,
 	}
-	return relatedVersionInfo, nil
+	return info, nil
 }
 
 func validateClusterTopology(topology metadata.Topology, shardID storage.ShardID, oldLeaderNodeName string) error {
 	_, found := topology.ShardViewsMapping[shardID]
 	if !found {
-		log.Error("shard not found", zap.Uint64("shardID", uint64(shardID)))
-		return metadata.ErrShardNotFound
+		return metadata.ErrShardNotFound.WithMessagef("create procedure on non-existent shard, shardID:%d", shardID)
 	}
+
 	if len(oldLeaderNodeName) == 0 {
 		return nil
 	}
+
 	shardNodes := topology.ClusterView.ShardNodes
 	if len(shardNodes) == 0 {
-		log.Error("shard not exist in any node", zap.Uint32("shardID", uint32(shardID)))
-		return metadata.ErrShardNotFound
+		return metadata.ErrShardNotFound.WithMessagef("create procedure on a shard without any node, shardID:%d", shardID)
 	}
 	for _, shardNode := range shardNodes {
 		if shardNode.ID == shardID {
 			leaderNodeName := shardNode.NodeName
 			if leaderNodeName != oldLeaderNodeName {
-				log.Error("shard leader node not match", zap.String("requestOldLeaderNodeName", oldLeaderNodeName), zap.String("actualOldLeaderNodeName", leaderNodeName))
-				return metadata.ErrNodeNotFound
+				return metadata.ErrNodeNotFound.WithMessagef("create procedure on a shard whose old leader node mismatches, old:%s, actual:%s", oldLeaderNodeName, leaderNodeName)
 			}
 		}
 	}
@@ -222,7 +223,7 @@ func (p *Procedure) State() procedure.State {
 func closeOldLeaderCallback(event *fsm.Event) {
 	req, err := procedure.GetRequestFromEvent[callbackRequest](event)
 	if err != nil {
-		procedure.CancelEventWithLog(event, err, "get request from event")
+		procedure.CancelEventWithLog(event, coderr.Wrapf(err, "get request from event"))
 		return
 	}
 	ctx := req.ctx
@@ -237,7 +238,7 @@ func closeOldLeaderCallback(event *fsm.Event) {
 		ShardID: uint32(req.p.params.ShardID),
 	}
 	if err := req.p.params.Dispatch.CloseShard(ctx, req.p.params.OldLeaderNodeName, closeShardRequest); err != nil {
-		procedure.CancelEventWithLog(event, err, "close shard", zap.Uint32("shardID", uint32(req.p.params.ShardID)), zap.String("oldLeaderName", req.p.params.OldLeaderNodeName))
+		procedure.CancelEventWithLog(event, coderr.Wrapf(err, "close old shard, shardID:%d, oldLeader:%s", req.p.params.ShardID, req.p.params.OldLeaderNodeName))
 		return
 	}
 
@@ -247,14 +248,14 @@ func closeOldLeaderCallback(event *fsm.Event) {
 func openNewShardCallback(event *fsm.Event) {
 	req, err := procedure.GetRequestFromEvent[callbackRequest](event)
 	if err != nil {
-		procedure.CancelEventWithLog(event, err, "get request from event")
+		procedure.CancelEventWithLog(event, coderr.Wrapf(err, "get request from event"))
 		return
 	}
 	ctx := req.ctx
 
 	shardView, exists := req.p.params.ClusterSnapshot.Topology.ShardViewsMapping[req.p.params.ShardID]
 	if !exists {
-		procedure.CancelEventWithLog(event, metadata.ErrShardNotFound, "shard not found in topology", zap.Uint64("shardID", uint64(req.p.params.ShardID)))
+		procedure.CancelEventWithLog(event, metadata.ErrShardNotFound.WithMessagef("open non-existent shard, shardID", req.p.params.ShardID))
 		return
 	}
 
@@ -270,7 +271,7 @@ func openNewShardCallback(event *fsm.Event) {
 	log.Info("try to open shard", zap.Uint64("procedureID", req.p.ID()), zap.Uint64("shardID", uint64(req.p.params.ShardID)), zap.String("newLeader", req.p.params.NewLeaderNodeName))
 
 	if err := req.p.params.Dispatch.OpenShard(ctx, req.p.params.NewLeaderNodeName, openShardRequest); err != nil {
-		procedure.CancelEventWithLog(event, err, "open shard", zap.Uint32("shardID", uint32(req.p.params.ShardID)), zap.String("newLeaderNode", req.p.params.NewLeaderNodeName))
+		procedure.CancelEventWithLog(event, coderr.Wrapf(err, "open new shard, shardID:%d, newLeader:%s", req.p.params.ShardID, req.p.params.NewLeaderNodeName))
 		return
 	}
 
@@ -280,7 +281,7 @@ func openNewShardCallback(event *fsm.Event) {
 func finishCallback(event *fsm.Event) {
 	req, err := procedure.GetRequestFromEvent[callbackRequest](event)
 	if err != nil {
-		procedure.CancelEventWithLog(event, err, "get request from event")
+		procedure.CancelEventWithLog(event, coderr.Wrapf(err, "get request from event"))
 		return
 	}
 

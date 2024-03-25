@@ -22,9 +22,9 @@ package droppartitiontable
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"sync"
 
+	"github.com/apache/incubator-horaedb-meta/pkg/coderr"
 	"github.com/apache/incubator-horaedb-meta/pkg/log"
 	"github.com/apache/incubator-horaedb-meta/server/cluster/metadata"
 	"github.com/apache/incubator-horaedb-meta/server/coordinator/eventdispatch"
@@ -114,11 +114,13 @@ func buildRelatedVersionInfo(params ProcedureParams) (procedure.RelatedVersionIn
 			tableShardMapping[tableID] = shardID
 		}
 	}
+
+	var relatedVersionInfo procedure.RelatedVersionInfo
 	shardViewWithVersion := make(map[storage.ShardID]uint64, 0)
 	for _, subTableName := range params.SourceReq.PartitionTableInfo.GetSubTableNames() {
 		table, exists, err := params.ClusterMetadata.GetTable(params.SourceReq.GetSchemaName(), subTableName)
 		if err != nil {
-			return procedure.RelatedVersionInfo{}, errors.WithMessagef(err, "get sub table, tableName:%s", subTableName)
+			return relatedVersionInfo, coderr.Wrapf(err, "get sub table, tableName:%s", subTableName)
 		}
 		if !exists {
 			continue
@@ -129,12 +131,12 @@ func buildRelatedVersionInfo(params ProcedureParams) (procedure.RelatedVersionIn
 		}
 		shardView, exists := params.ClusterSnapshot.Topology.ShardViewsMapping[shardID]
 		if !exists {
-			return procedure.RelatedVersionInfo{}, errors.WithMessagef(metadata.ErrShardNotFound, "shard not found in topology, shardID:%d", shardID)
+			return relatedVersionInfo, metadata.ErrShardNotFound.WithMessagef("shard not found in topology, shardID:%d", shardID)
 		}
 		shardViewWithVersion[shardID] = shardView.Version
 	}
 
-	relatedVersionInfo := procedure.RelatedVersionInfo{
+	relatedVersionInfo = procedure.RelatedVersionInfo{
 		ClusterID:        params.ClusterSnapshot.Topology.ClusterView.ClusterID,
 		ShardWithVersion: shardViewWithVersion,
 		ClusterVersion:   params.ClusterSnapshot.Topology.ClusterView.Version,
@@ -252,7 +254,7 @@ func (p *Procedure) convertToMeta() (procedure.Meta, error) {
 	rawDataBytes, err := json.Marshal(rawData)
 	if err != nil {
 		var emptyMeta procedure.Meta
-		return emptyMeta, procedure.ErrEncodeRawData.WithCausef("marshal raw data, procedureID:%d, err:%v", p.params.ID, err)
+		return emptyMeta, procedure.ErrEncodeRawData.WithMessagef("decode procedure.Meta, procedureID:%d, err:%v", p.params.ID, err)
 	}
 
 	meta := procedure.Meta{
@@ -293,13 +295,13 @@ func (d *callbackRequest) tableName() string {
 func dropDataTablesCallback(event *fsm.Event) {
 	req, err := procedure.GetRequestFromEvent[*callbackRequest](event)
 	if err != nil {
-		procedure.CancelEventWithLog(event, err, "get request from event")
+		procedure.CancelEventWithLog(event, coderr.Wrapf(err, "get request from event"))
 		return
 	}
 	params := req.p.params
 
 	if len(params.SourceReq.PartitionTableInfo.SubTableNames) == 0 {
-		procedure.CancelEventWithLog(event, procedure.ErrEmptyPartitionNames, fmt.Sprintf("drop table, table:%s", params.SourceReq.Name))
+		procedure.CancelEventWithLog(event, procedure.ErrEmptyPartitionNames.WithMessagef("dropped partition contains no sub tables, table:%s", params.SourceReq.Name))
 		return
 	}
 
@@ -318,7 +320,7 @@ func dropDataTablesCallback(event *fsm.Event) {
 		shardVersionUpdate, shardExists, err := ddl.BuildShardVersionUpdate(table, params.ClusterMetadata, shardVersions)
 		if err != nil {
 			log.Error("get shard version by table", zap.String("tableName", tableName), zap.Error(err))
-			procedure.CancelEventWithLog(event, err, "build shard version update", zap.String("tableName", tableName))
+			procedure.CancelEventWithLog(event, coderr.Wrapf(err, "build shard version update, table:%s", tableName))
 			return
 		}
 		// If the shard corresponding to this table does not exist, it means that the actual table creation failed.
@@ -326,7 +328,7 @@ func dropDataTablesCallback(event *fsm.Event) {
 		if !shardExists {
 			_, err := params.ClusterMetadata.DropTableMetadata(req.ctx, req.schemaName(), tableName)
 			if err != nil {
-				procedure.CancelEventWithLog(event, err, "drop table metadata", zap.String("tableName", tableName))
+				procedure.CancelEventWithLog(event, coderr.Wrapf(err, "drop table metadata, table:%s", tableName))
 				return
 			}
 			continue
@@ -346,7 +348,7 @@ func dropDataTablesCallback(event *fsm.Event) {
 
 	err = g.Wait()
 	if err != nil {
-		procedure.CancelEventWithLog(event, err, "")
+		procedure.CancelEventWithLog(event, err)
 		return
 	}
 }
@@ -355,13 +357,13 @@ func dropDataTablesCallback(event *fsm.Event) {
 func dropPartitionTableCallback(event *fsm.Event) {
 	req, err := procedure.GetRequestFromEvent[*callbackRequest](event)
 	if err != nil {
-		procedure.CancelEventWithLog(event, err, "get request from event")
+		procedure.CancelEventWithLog(event, coderr.Wrapf(err, "get request from event"))
 		return
 	}
 
 	dropTableMetadataResult, err := req.p.params.ClusterMetadata.DropTableMetadata(req.ctx, req.schemaName(), req.tableName())
 	if err != nil {
-		procedure.CancelEventWithLog(event, err, fmt.Sprintf("drop table, table:%s", req.tableName()))
+		procedure.CancelEventWithLog(event, coderr.Wrapf(err, "drop table meta data, table:%s", req.tableName()))
 		return
 	}
 
@@ -371,7 +373,7 @@ func dropPartitionTableCallback(event *fsm.Event) {
 func finishCallback(event *fsm.Event) {
 	request, err := procedure.GetRequestFromEvent[*callbackRequest](event)
 	if err != nil {
-		procedure.CancelEventWithLog(event, err, "get request from event")
+		procedure.CancelEventWithLog(event, coderr.Wrapf(err, "get request from event"))
 		return
 	}
 	log.Info("drop partition table finish")
@@ -386,7 +388,7 @@ func finishCallback(event *fsm.Event) {
 	}
 
 	if err = request.p.params.OnSucceeded(tableInfo); err != nil {
-		procedure.CancelEventWithLog(event, err, "drop partition table on succeeded")
+		procedure.CancelEventWithLog(event, coderr.Wrapf(err, "drop partition table on succeeded"))
 		return
 	}
 }
@@ -395,7 +397,7 @@ func dispatchDropDataTable(req *callbackRequest, dispatch eventdispatch.Dispatch
 	for _, tableName := range tableNames {
 		table, err := ddl.GetTableMetadata(clusterMetadata, req.schemaName(), tableName)
 		if err != nil {
-			return errors.WithMessagef(err, "get table metadata, table:%s", tableName)
+			return coderr.Wrapf(err, "get table metadata, table:%s", tableName)
 		}
 
 		shardVersionUpdate := metadata.ShardVersionUpdate{
@@ -405,7 +407,7 @@ func dispatchDropDataTable(req *callbackRequest, dispatch eventdispatch.Dispatch
 
 		latestShardVersion, err := ddl.DropTableOnShard(req.ctx, clusterMetadata, dispatch, schema, table, shardVersionUpdate)
 		if err != nil {
-			return errors.WithMessagef(err, "drop table, table:%s", tableName)
+			return coderr.Wrapf(err, "drop table, table:%s", tableName)
 		}
 
 		err = clusterMetadata.DropTable(req.ctx, metadata.DropTableRequest{
@@ -415,7 +417,7 @@ func dispatchDropDataTable(req *callbackRequest, dispatch eventdispatch.Dispatch
 			LatestVersion: latestShardVersion,
 		})
 		if err != nil {
-			return errors.WithMessagef(err, "drop table, table:%s", tableName)
+			return coderr.Wrapf(err, "drop table, table:%s", tableName)
 		}
 
 		shardVersion++

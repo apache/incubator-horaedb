@@ -107,8 +107,7 @@ func (a *API) NewAPIRouter() *Router {
 func (a *API) getLeader(req *http.Request) apiFuncResult {
 	leaderAddr, err := a.forwardClient.GetLeaderAddr(req.Context())
 	if err != nil {
-		log.Error("get leader addr failed", zap.Error(err))
-		return errResult(member.ErrGetLeader, err.Error())
+		return errResult(member.ErrGetLeader.WithCause(err))
 	}
 	return okResult(leaderAddr)
 }
@@ -117,12 +116,12 @@ func (a *API) getShardTables(req *http.Request) apiFuncResult {
 	var getShardTablesReq GetShardTablesRequest
 	err := json.NewDecoder(req.Body).Decode(&getShardTablesReq)
 	if err != nil {
-		return errResult(ErrParseRequest, err.Error())
+		return errResult(ErrParseRequest.WithCause(err))
 	}
 
 	c, err := a.clusterManager.GetCluster(req.Context(), getShardTablesReq.ClusterName)
 	if err != nil {
-		return errResult(ErrParseRequest, err.Error())
+		return errResult(ErrParseRequest.WithCause(err))
 	}
 
 	// If ShardIDs in the request is empty, query with all shardIDs in the cluster.
@@ -146,14 +145,14 @@ func (a *API) transferLeader(req *http.Request) apiFuncResult {
 	var transferLeaderRequest TransferLeaderRequest
 	err := json.NewDecoder(req.Body).Decode(&transferLeaderRequest)
 	if err != nil {
-		return errResult(ErrParseRequest, err.Error())
+		return errResult(ErrParseRequest.WithCause(err))
 	}
 	log.Info("transfer leader request", zap.String("request", fmt.Sprintf("%+v", transferLeaderRequest)))
 
 	c, err := a.clusterManager.GetCluster(req.Context(), transferLeaderRequest.ClusterName)
 	if err != nil {
 		log.Error("get cluster failed", zap.String("clusterName", transferLeaderRequest.ClusterName), zap.Error(err))
-		return errResult(ErrGetCluster, fmt.Sprintf("clusterName: %s, err: %s", transferLeaderRequest.ClusterName, err.Error()))
+		return errResult(ErrGetCluster.WithMessagef("clusterName:%s, err:%s", transferLeaderRequest.ClusterName, err.Error()))
 	}
 
 	transferLeaderProcedure, err := c.GetProcedureFactory().CreateTransferLeaderProcedure(req.Context(), coordinator.TransferLeaderRequest{
@@ -164,12 +163,12 @@ func (a *API) transferLeader(req *http.Request) apiFuncResult {
 	})
 	if err != nil {
 		log.Error("create transfer leader procedure failed", zap.Error(err))
-		return errResult(ErrCreateProcedure, err.Error())
+		return errResult(ErrCreateProcedure.WithCause(err))
 	}
 	err = c.GetProcedureManager().Submit(req.Context(), transferLeaderProcedure)
 	if err != nil {
 		log.Error("submit transfer leader procedure failed", zap.Error(err))
-		return errResult(ErrSubmitProcedure, err.Error())
+		return errResult(ErrSubmitProcedure.WithCause(err))
 	}
 
 	return okResult(statusSuccess)
@@ -179,13 +178,12 @@ func (a *API) route(req *http.Request) apiFuncResult {
 	var routeRequest RouteRequest
 	err := json.NewDecoder(req.Body).Decode(&routeRequest)
 	if err != nil {
-		return errResult(ErrParseRequest, err.Error())
+		return errResult(ErrParseRequest.WithCause(err))
 	}
 
 	result, err := a.clusterManager.RouteTables(context.Background(), routeRequest.ClusterName, routeRequest.SchemaName, routeRequest.Tables)
 	if err != nil {
-		log.Error("route tables failed", zap.Error(err))
-		return errResult(ErrRoute, err.Error())
+		return errResult(ErrRoute.WithCause(err))
 	}
 
 	return okResult(result)
@@ -195,13 +193,12 @@ func (a *API) getNodeShards(req *http.Request) apiFuncResult {
 	var nodeShardsRequest NodeShardsRequest
 	err := json.NewDecoder(req.Body).Decode(&nodeShardsRequest)
 	if err != nil {
-		return errResult(ErrParseRequest, err.Error())
+		return errResult(ErrParseRequest.WithCause(err))
 	}
 
 	result, err := a.clusterManager.GetNodeShards(context.Background(), nodeShardsRequest.ClusterName)
 	if err != nil {
-		log.Error("get node shards failed", zap.Error(err))
-		return errResult(ErrGetNodeShards, err.Error())
+		return errResult(ErrGetNodeShards.WithCause(err))
 	}
 
 	return okResult(result)
@@ -211,13 +208,13 @@ func (a *API) dropNodeShards(req *http.Request) apiFuncResult {
 	var dropNodeShardsRequest DropNodeShardsRequest
 	err := json.NewDecoder(req.Body).Decode(&dropNodeShardsRequest)
 	if err != nil {
-		return errResult(ErrParseRequest, err.Error())
+		return errResult(ErrParseRequest.WithCause(err))
 	}
 
 	c, err := a.clusterManager.GetCluster(req.Context(), dropNodeShardsRequest.ClusterName)
 	if err != nil {
 		log.Error("get cluster failed", zap.String("clusterName", dropNodeShardsRequest.ClusterName), zap.Error(err))
-		return errResult(ErrGetCluster, fmt.Sprintf("clusterName: %s, err: %s", dropNodeShardsRequest.ClusterName, err.Error()))
+		return errResult(ErrGetCluster.WithMessagef("clusterName:%s, err:%s", dropNodeShardsRequest.ClusterName, err.Error()))
 	}
 
 	targetShardNodes := make([]storage.ShardNode, 0, len(dropNodeShardsRequest.ShardIDs))
@@ -231,8 +228,7 @@ func (a *API) dropNodeShards(req *http.Request) apiFuncResult {
 	}
 
 	if err := c.GetMetadata().DropShardNodes(req.Context(), targetShardNodes); err != nil {
-		log.Error("drop node shards failed", zap.Error(err))
-		return errResult(ErrDropNodeShards, err.Error())
+		return errResult(ErrDropNodeShards.WithCause(err))
 	}
 
 	return okResult(targetShardNodes)
@@ -242,13 +238,13 @@ func (a *API) dropTable(req *http.Request) apiFuncResult {
 	var dropTableRequest DropTableRequest
 	err := json.NewDecoder(req.Body).Decode(&dropTableRequest)
 	if err != nil {
-		return errResult(ErrParseRequest, err.Error())
+		return errResult(ErrParseRequest.WithCause(err))
 	}
 	log.Info("drop table request", zap.String("request", fmt.Sprintf("%+v", dropTableRequest)))
 
 	if err := a.clusterManager.DropTable(context.Background(), dropTableRequest.ClusterName, dropTableRequest.SchemaName, dropTableRequest.Table); err != nil {
 		log.Error("drop table failed", zap.Error(err))
-		return errResult(ErrTable, err.Error())
+		return errResult(ErrTable.WithCause(err))
 	}
 
 	return okResult(statusSuccess)
@@ -258,7 +254,7 @@ func (a *API) split(req *http.Request) apiFuncResult {
 	var splitRequest SplitRequest
 	err := json.NewDecoder(req.Body).Decode(&splitRequest)
 	if err != nil {
-		return errResult(ErrParseRequest, err.Error())
+		return errResult(ErrParseRequest.WithCause(err))
 	}
 
 	log.Info("split request", zap.String("request", fmt.Sprintf("%+v", splitRequest)))
@@ -267,14 +263,12 @@ func (a *API) split(req *http.Request) apiFuncResult {
 
 	c, err := a.clusterManager.GetCluster(ctx, splitRequest.ClusterName)
 	if err != nil {
-		log.Error("get cluster failed", zap.String("clusterName", splitRequest.ClusterName), zap.Error(err))
-		return errResult(ErrGetCluster, fmt.Sprintf("clusterName: %s, err: %s", splitRequest.ClusterName, err.Error()))
+		return errResult(ErrGetCluster.WithCausef(err, "clusterName:%s", splitRequest.ClusterName))
 	}
 
 	newShardID, err := c.GetMetadata().AllocShardID(ctx)
 	if err != nil {
-		log.Error("alloc shard id failed", zap.Error(err))
-		return errResult(ErrAllocShardID, err.Error())
+		return errResult(ErrAllocShardID.WithCause(err))
 	}
 
 	splitProcedure, err := c.GetProcedureFactory().CreateSplitProcedure(ctx, coordinator.SplitRequest{
@@ -288,12 +282,12 @@ func (a *API) split(req *http.Request) apiFuncResult {
 	})
 	if err != nil {
 		log.Error("create split procedure failed", zap.Error(err))
-		return errResult(ErrCreateProcedure, err.Error())
+		return errResult(ErrCreateProcedure.WithCause(err))
 	}
 
 	if err := c.GetProcedureManager().Submit(ctx, splitProcedure); err != nil {
 		log.Error("submit split procedure failed", zap.Error(err))
-		return errResult(ErrSubmitProcedure, err.Error())
+		return errResult(ErrSubmitProcedure.WithCause(err))
 	}
 
 	return okResult(newShardID)
@@ -302,7 +296,7 @@ func (a *API) split(req *http.Request) apiFuncResult {
 func (a *API) listClusters(req *http.Request) apiFuncResult {
 	clusters, err := a.clusterManager.ListClusters(req.Context())
 	if err != nil {
-		return errResult(ErrGetCluster, err.Error())
+		return errResult(ErrGetCluster.WithCause(err))
 	}
 
 	clusterMetadatas := make([]storage.Cluster, 0, len(clusters))
@@ -318,24 +312,22 @@ func (a *API) createCluster(req *http.Request) apiFuncResult {
 	var createClusterRequest CreateClusterRequest
 	err := json.NewDecoder(req.Body).Decode(&createClusterRequest)
 	if err != nil {
-		return errResult(ErrParseRequest, err.Error())
+		return errResult(ErrParseRequest.WithCause(err))
 	}
 
 	log.Info("create cluster request", zap.String("request", fmt.Sprintf("%+v", createClusterRequest)))
 
 	if createClusterRequest.ProcedureExecutingBatchSize == 0 {
-		return errResult(ErrInvalidParamsForCreateCluster, "expect positive procedureExecutingBatchSize")
+		return errResult(ErrInvalidParamsForCreateCluster.WithMessagef("expect positive procedureExecutingBatchSize"))
 	}
 
 	if _, err := a.clusterManager.GetCluster(req.Context(), createClusterRequest.Name); err == nil {
-		log.Error("cluster already exists", zap.String("clusterName", createClusterRequest.Name))
-		return errResult(ErrGetCluster, fmt.Sprintf("cluster: %s already exists", createClusterRequest.Name))
+		return errResult(ErrAlreadyExistsCluster.WithMessagef("cluster:%s", createClusterRequest.Name))
 	}
 
 	topologyType, err := metadata.ParseTopologyType(createClusterRequest.TopologyType)
 	if err != nil {
-		log.Error("parse topology type failed", zap.Error(err))
-		return errResult(ErrParseRequest, err.Error())
+		return errResult(ErrParseRequest.WithCause(err))
 	}
 
 	ctx := context.Background()
@@ -349,7 +341,7 @@ func (a *API) createCluster(req *http.Request) apiFuncResult {
 	c, err := a.clusterManager.CreateCluster(ctx, createClusterRequest.Name, createClusterOpts)
 	if err != nil {
 		log.Error("create cluster failed", zap.Error(err))
-		return errResult(metadata.ErrCreateCluster, err.Error())
+		return errResult(metadata.ErrCreateCluster.WithCause(err))
 	}
 
 	return okResult(c.GetMetadata().GetClusterID())
@@ -358,35 +350,32 @@ func (a *API) createCluster(req *http.Request) apiFuncResult {
 func (a *API) updateCluster(req *http.Request) apiFuncResult {
 	clusterName := Param(req.Context(), clusterNameParam)
 	if len(clusterName) == 0 {
-		return errResult(ErrParseRequest, "clusterName could not be empty")
+		return errResult(ErrInvalidClusterName.WithMessagef("clusterName can't be empty"))
 	}
 
 	var updateClusterRequest UpdateClusterRequest
 	err := json.NewDecoder(req.Body).Decode(&updateClusterRequest)
 	if err != nil {
-		return errResult(ErrParseRequest, err.Error())
+		return errResult(ErrParseRequest.WithCause(err))
 	}
 
 	log.Info("update cluster request", zap.String("request", fmt.Sprintf("%+v", updateClusterRequest)))
 
 	c, err := a.clusterManager.GetCluster(req.Context(), clusterName)
 	if err != nil {
-		log.Error("get cluster failed", zap.Error(err))
-		return errResult(ErrGetCluster, fmt.Sprintf("clusterName: %s, err: %s", clusterName, err.Error()))
+		return errResult(ErrGetCluster.WithCausef(err, "clusterName:%s", clusterName))
 	}
 
 	topologyType, err := metadata.ParseTopologyType(updateClusterRequest.TopologyType)
 	if err != nil {
-		log.Error("parse topology type", zap.Error(err))
-		return errResult(ErrParseTopology, err.Error())
+		return errResult(ErrParseTopology.WithCause(err))
 	}
 
 	if err := a.clusterManager.UpdateCluster(req.Context(), clusterName, metadata.UpdateClusterOpts{
 		TopologyType:                topologyType,
 		ProcedureExecutingBatchSize: updateClusterRequest.ProcedureExecutingBatchSize,
 	}); err != nil {
-		log.Error("update cluster failed", zap.Error(err))
-		return errResult(metadata.ErrUpdateCluster, err.Error())
+		return errResult(metadata.ErrUpdateCluster.WithCause(err))
 	}
 
 	return okResult(c.GetMetadata().GetClusterID())
@@ -401,8 +390,7 @@ func (a *API) updateFlowLimiter(req *http.Request) apiFuncResult {
 	var updateFlowLimiterRequest UpdateFlowLimiterRequest
 	err := json.NewDecoder(req.Body).Decode(&updateFlowLimiterRequest)
 	if err != nil {
-		log.Error("decode request body failed", zap.Error(err))
-		return errResult(ErrParseRequest, err.Error())
+		return errResult(ErrParseRequest.WithCause(err))
 	}
 
 	log.Info("update flow limiter request", zap.String("request", fmt.Sprintf("%+v", updateFlowLimiterRequest)))
@@ -414,8 +402,7 @@ func (a *API) updateFlowLimiter(req *http.Request) apiFuncResult {
 	}
 
 	if err := a.flowLimiter.UpdateLimiter(newLimiterConfig); err != nil {
-		log.Error("update flow limiter failed", zap.Error(err))
-		return errResult(ErrUpdateFlowLimiter, err.Error())
+		return errResult(ErrUpdateFlowLimiter.WithCause(err))
 	}
 
 	return okResult(statusSuccess)
@@ -425,18 +412,17 @@ func (a *API) listProcedures(req *http.Request) apiFuncResult {
 	ctx := req.Context()
 	clusterName := Param(ctx, clusterNameParam)
 	if len(clusterName) == 0 {
-		return errResult(ErrParseRequest, "clusterName could not be empty")
+		return errResult(ErrInvalidClusterName.WithMessagef("clusterName can't be empty when list cluster procedures"))
 	}
 
 	c, err := a.clusterManager.GetCluster(ctx, clusterName)
 	if err != nil {
-		return errResult(ErrGetCluster, fmt.Sprintf("clusterName: %s, err: %s", clusterName, err.Error()))
+		return errResult(ErrGetCluster.WithCausef(err, "list procedures of cluster"))
 	}
 
 	infos, err := c.GetProcedureManager().ListRunningProcedure(ctx)
 	if err != nil {
-		log.Error("list running procedure failed", zap.Error(err))
-		return errResult(procedure.ErrListRunningProcedure, fmt.Sprintf("clusterName: %s", clusterName))
+		return errResult(procedure.ErrListRunningProcedure.WithMessagef("list cluster's running procedures, clusterName:%s", clusterName))
 	}
 
 	return okResult(infos)
@@ -446,17 +432,17 @@ func (a *API) listShardAffinities(req *http.Request) apiFuncResult {
 	ctx := req.Context()
 	clusterName := Param(ctx, clusterNameParam)
 	if len(clusterName) == 0 {
-		return errResult(ErrParseRequest, "clusterName could not be empty")
+		return errResult(ErrInvalidClusterName.WithMessagef("clusterName can't be empty when list shard affinities"))
 	}
 
 	c, err := a.clusterManager.GetCluster(ctx, clusterName)
 	if err != nil {
-		return errResult(ErrGetCluster, fmt.Sprintf("clusterName: %s, err: %s", clusterName, err.Error()))
+		return errResult(ErrGetCluster.WithCausef(err, "list shard affinities"))
 	}
 
 	affinityRules, err := c.GetSchedulerManager().ListShardAffinityRules(ctx)
 	if err != nil {
-		return errResult(ErrListAffinityRules, fmt.Sprintf("err: %v", err))
+		return errResult(ErrListAffinityRules.WithCause(err))
 	}
 
 	return okResult(affinityRules)
@@ -466,27 +452,25 @@ func (a *API) addShardAffinities(req *http.Request) apiFuncResult {
 	ctx := req.Context()
 	clusterName := Param(ctx, clusterNameParam)
 	if len(clusterName) == 0 {
-		return errResult(ErrParseRequest, "clusterName could not be empty")
+		return errResult(ErrInvalidClusterName.WithMessagef("clusterName can't be empty when add shard affinities"))
 	}
 
 	var affinities []scheduler.ShardAffinity
 	err := json.NewDecoder(req.Body).Decode(&affinities)
 	if err != nil {
-		log.Error("decode request body failed", zap.Error(err))
-		return errResult(ErrParseRequest, err.Error())
+		return errResult(ErrParseRequest.WithCause(err))
 	}
 
 	log.Info("try to apply shard affinity rule", zap.String("cluster", clusterName), zap.String("affinity", fmt.Sprintf("%+v", affinities)))
 
 	c, err := a.clusterManager.GetCluster(ctx, clusterName)
 	if err != nil {
-		return errResult(ErrGetCluster, fmt.Sprintf("clusterName: %s, err: %s", clusterName, err.Error()))
+		return errResult(ErrGetCluster.WithCausef(err, "add shard affinities for cluster:%s", clusterName))
 	}
 
 	err = c.GetSchedulerManager().AddShardAffinityRule(ctx, scheduler.ShardAffinityRule{Affinities: affinities})
 	if err != nil {
-		log.Error("failed to apply shard affinity rule", zap.String("cluster", clusterName), zap.String("affinity", fmt.Sprintf("%+v", affinities)))
-		return errResult(ErrAddAffinityRule, fmt.Sprintf("err: %v", err))
+		return errResult(ErrAddAffinityRule.WithCause(err))
 	}
 
 	log.Info("finish applying shard affinity rule", zap.String("cluster", clusterName), zap.String("rules", fmt.Sprintf("%+v", affinities)))
@@ -498,27 +482,25 @@ func (a *API) removeShardAffinities(req *http.Request) apiFuncResult {
 	ctx := req.Context()
 	clusterName := Param(ctx, clusterNameParam)
 	if len(clusterName) == 0 {
-		return errResult(ErrParseRequest, "clusterName could not be empty")
+		return errResult(ErrInvalidClusterName.WithMessagef("clusterName can't be empty when remove shard affinities"))
 	}
 
 	var decodedReq RemoveShardAffinitiesRequest
 	err := json.NewDecoder(req.Body).Decode(&decodedReq)
 	if err != nil {
-		log.Error("decode request body failed", zap.Error(err))
-		return errResult(ErrParseRequest, err.Error())
+		return errResult(ErrParseRequest.WithCause(err))
 	}
 
 	c, err := a.clusterManager.GetCluster(ctx, clusterName)
 	if err != nil {
-		return errResult(ErrGetCluster, fmt.Sprintf("clusterName: %s, err: %s", clusterName, err.Error()))
+		return errResult(ErrGetCluster.WithCause(err))
 	}
 
 	for _, shardID := range decodedReq.ShardIDs {
 		log.Info("try to remove shard affinity rule", zap.String("cluster", clusterName), zap.Int("shardID", int(shardID)))
 		err := c.GetSchedulerManager().RemoveShardAffinityRule(ctx, shardID)
 		if err != nil {
-			log.Error("failed to remove shard affinity rule", zap.String("cluster", clusterName), zap.Int("shardID", int(shardID)), zap.Error(err))
-			return errResult(ErrRemoveAffinityRule, fmt.Sprintf("err: %s", err))
+			return errResult(ErrRemoveAffinityRule.WithCause(err))
 		}
 	}
 
@@ -529,13 +511,13 @@ func (a *API) queryTable(r *http.Request) apiFuncResult {
 	var req QueryTableRequest
 	err := json.NewDecoder(r.Body).Decode(&req)
 	if err != nil {
-		return errResult(ErrParseRequest, err.Error())
+		return errResult(ErrParseRequest.WithCause(err))
 	}
 
 	if len(req.Names) != 0 {
 		tables, err := a.clusterManager.GetTables(req.ClusterName, req.SchemaName, req.Names)
 		if err != nil {
-			return errResult(ErrTable, err.Error())
+			return errResult(ErrTable.WithCause(err))
 		}
 		return okResult(tables)
 	}
@@ -547,7 +529,7 @@ func (a *API) queryTable(r *http.Request) apiFuncResult {
 
 	tables, err := a.clusterManager.GetTablesByIDs(req.ClusterName, ids)
 	if err != nil {
-		return errResult(ErrTable, err.Error())
+		return errResult(ErrTable.WithCause(err))
 	}
 	return okResult(tables)
 }
@@ -561,12 +543,12 @@ func (a *API) getEnableSchedule(r *http.Request) apiFuncResult {
 
 	c, err := a.clusterManager.GetCluster(ctx, clusterName)
 	if err != nil {
-		return errResult(ErrGetCluster, fmt.Sprintf("clusterName: %s, err: %s", clusterName, err.Error()))
+		return errResult(ErrGetCluster.WithCause(err))
 	}
 
 	enableSchedule, err := c.GetSchedulerManager().GetEnableSchedule(r.Context())
 	if err != nil {
-		return errResult(ErrGetEnableSchedule, err.Error())
+		return errResult(ErrGetEnableSchedule.WithCause(err))
 	}
 
 	return okResult(enableSchedule)
@@ -581,18 +563,18 @@ func (a *API) updateEnableSchedule(r *http.Request) apiFuncResult {
 
 	c, err := a.clusterManager.GetCluster(ctx, clusterName)
 	if err != nil {
-		return errResult(ErrGetCluster, fmt.Sprintf("clusterName: %s, err: %s", clusterName, err.Error()))
+		return errResult(ErrGetCluster.WithCause(err))
 	}
 
 	var req UpdateEnableScheduleRequest
 	err = json.NewDecoder(r.Body).Decode(&req)
 	if err != nil {
-		return errResult(ErrParseRequest, err.Error())
+		return errResult(ErrParseRequest.WithCause(err))
 	}
 
 	err = c.GetSchedulerManager().UpdateEnableSchedule(r.Context(), req.Enable)
 	if err != nil {
-		return errResult(ErrUpdateEnableSchedule, err.Error())
+		return errResult(ErrUpdateEnableSchedule.WithCause(err))
 	}
 
 	return okResult(req.Enable)
@@ -607,12 +589,12 @@ func (a *API) diagnoseShards(req *http.Request) apiFuncResult {
 
 	c, err := a.clusterManager.GetCluster(ctx, clusterName)
 	if err != nil {
-		return errResult(ErrGetCluster, fmt.Sprintf("clusterName: %s, err: %s", clusterName, err.Error()))
+		return errResult(ErrGetCluster.WithCause(err))
 	}
 
 	registeredNodes, err := a.clusterManager.ListRegisteredNodes(ctx, clusterName)
 	if err != nil {
-		return errResult(ErrGetCluster, fmt.Sprintf("clusterName: %s, err: %s", clusterName, err.Error()))
+		return errResult(ErrGetCluster.WithCause(err))
 	}
 
 	ret := DiagnoseShardResult{
@@ -650,7 +632,7 @@ func (a *API) health(_ *http.Request) apiFuncResult {
 	if isServerHealthy {
 		return okResult(nil)
 	}
-	return errResult(ErrHealthCheck, fmt.Sprintf("server heath check failed, status is %v", a.serverStatus.Get()))
+	return errResult(ErrHealthCheck.WithMessagef("server heath check failed, status is %v", a.serverStatus.Get()))
 }
 
 func (a *API) pprofHeap(writer http.ResponseWriter, req *http.Request) {
@@ -730,12 +712,13 @@ func respond(w http.ResponseWriter, data interface{}) {
 	}
 }
 
-func respondError(w http.ResponseWriter, apiErr coderr.CodeError, msg string) {
+func respondError(w http.ResponseWriter, apiErr coderr.CodeError) {
 	b, err := json.Marshal(&response{
 		Status: statusError,
 		Data:   nil,
 		Error:  apiErr.Error(),
-		Msg:    msg,
+		// FIXME: remove the redundant Msg field.
+		Msg: apiErr.Error(),
 	})
 	if err != nil {
 		log.Error("marshal json response failed", zap.Error(err))
@@ -756,7 +739,7 @@ func wrap(f apiFunc, needForward bool, forwardClient *ForwardClient) http.Handle
 			resp, isLeader, err := forwardClient.forwardToLeader(r)
 			if err != nil {
 				log.Error("forward to leader failed", zap.Error(err))
-				respondError(w, ErrForwardToLeader, err.Error())
+				respondError(w, ErrForwardToLeader.WithCause(err))
 				return
 			}
 			if !isLeader {
@@ -768,7 +751,7 @@ func wrap(f apiFunc, needForward bool, forwardClient *ForwardClient) http.Handle
 		}
 		result := f(r)
 		if result.err != nil {
-			respondError(w, result.err, result.errMsg)
+			respondError(w, result.err)
 			return
 		}
 		respond(w, result.data)

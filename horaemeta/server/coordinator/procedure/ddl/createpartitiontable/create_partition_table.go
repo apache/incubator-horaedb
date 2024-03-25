@@ -26,6 +26,7 @@ import (
 	"sync"
 
 	"github.com/apache/incubator-horaedb-meta/pkg/assert"
+	"github.com/apache/incubator-horaedb-meta/pkg/coderr"
 	"github.com/apache/incubator-horaedb-meta/pkg/log"
 	"github.com/apache/incubator-horaedb-meta/server/cluster/metadata"
 	"github.com/apache/incubator-horaedb-meta/server/coordinator/eventdispatch"
@@ -112,19 +113,22 @@ func NewProcedure(params ProcedureParams) (procedure.Procedure, error) {
 
 func buildRelatedVersionInfo(params ProcedureParams) (procedure.RelatedVersionInfo, error) {
 	shardWithVersion := make(map[storage.ShardID]uint64, len(params.SubTablesShards))
+
+	var info procedure.RelatedVersionInfo
 	for _, subTableShard := range params.SubTablesShards {
 		shardView, exists := params.ClusterSnapshot.Topology.ShardViewsMapping[subTableShard.ShardInfo.ID]
 		if !exists {
-			return procedure.RelatedVersionInfo{}, errors.WithMessagef(metadata.ErrShardNotFound, "shard not found in topology, shardID:%d", subTableShard.ShardInfo.ID)
+			return info, metadata.ErrShardNotFound.WithMessagef("build related version info, shardID:%d", subTableShard.ShardInfo.ID)
 		}
 		shardWithVersion[shardView.ShardID] = shardView.Version
 	}
 
-	return procedure.RelatedVersionInfo{
+	info = procedure.RelatedVersionInfo{
 		ClusterID:        params.ClusterSnapshot.Topology.ClusterView.ClusterID,
 		ShardWithVersion: shardWithVersion,
 		ClusterVersion:   params.ClusterSnapshot.Topology.ClusterView.Version,
-	}, nil
+	}
+	return info, nil
 }
 
 func (p *Procedure) ID() uint64 {
@@ -213,7 +217,7 @@ type callbackRequest struct {
 func createPartitionTableCallback(event *fsm.Event) {
 	req, err := procedure.GetRequestFromEvent[*callbackRequest](event)
 	if err != nil {
-		procedure.CancelEventWithLog(event, err, "get request from event")
+		procedure.CancelEventWithLog(event, coderr.Wrapf(err, "get request from event"))
 		return
 	}
 	params := req.p.params
@@ -224,7 +228,7 @@ func createPartitionTableCallback(event *fsm.Event) {
 		PartitionInfo: storage.PartitionInfo{Info: params.SourceReq.PartitionTableInfo.GetPartitionInfo()},
 	})
 	if err != nil {
-		procedure.CancelEventWithLog(event, err, "create table metadata")
+		procedure.CancelEventWithLog(event, coderr.Wrapf(err, "create table metadata"))
 		return
 	}
 	req.p.createPartitionTableResult = &createTableMetadataResult
@@ -234,7 +238,7 @@ func createPartitionTableCallback(event *fsm.Event) {
 func createDataTablesCallback(event *fsm.Event) {
 	req, err := procedure.GetRequestFromEvent[*callbackRequest](event)
 	if err != nil {
-		procedure.CancelEventWithLog(event, err, "get request from event")
+		procedure.CancelEventWithLog(event, coderr.Wrapf(err, "get request from event"))
 		return
 	}
 	params := req.p.params
@@ -263,7 +267,7 @@ func createDataTablesCallback(event *fsm.Event) {
 	for {
 		select {
 		case err := <-errCh:
-			procedure.CancelEventWithLog(event, err, "create data tables")
+			procedure.CancelEventWithLog(event, coderr.Wrapf(err, "create data tables"))
 			return
 		case <-succeedCh:
 			goRoutineNumber--
@@ -311,7 +315,7 @@ func createDataTables(req *callbackRequest, shardID storage.ShardID, tableMetaDa
 func finishCallback(event *fsm.Event) {
 	req, err := procedure.GetRequestFromEvent[*callbackRequest](event)
 	if err != nil {
-		procedure.CancelEventWithLog(event, err, "get request from event")
+		procedure.CancelEventWithLog(event, coderr.Wrapf(err, "get request from event"))
 		return
 	}
 	log.Info("create partition table finish", zap.String("tableName", req.p.params.SourceReq.GetName()))
@@ -322,7 +326,7 @@ func finishCallback(event *fsm.Event) {
 		Table:              req.p.createPartitionTableResult.Table,
 		ShardVersionUpdate: versionUpdate,
 	}); err != nil {
-		procedure.CancelEventWithLog(event, err, "create partition table on succeeded")
+		procedure.CancelEventWithLog(event, coderr.Wrapf(err, "create partition table on succeeded"))
 		return
 	}
 }
@@ -372,7 +376,7 @@ func (p *Procedure) convertToMeta() (procedure.Meta, error) {
 	rawDataBytes, err := json.Marshal(rawData)
 	if err != nil {
 		var emptyMeta procedure.Meta
-		return emptyMeta, procedure.ErrEncodeRawData.WithCausef("marshal raw data, procedureID:%v, err:%v", p.params.ID, err)
+		return emptyMeta, procedure.ErrEncodeRawData.WithMessagef("convert to procedure.Meta, procedureID:%v, err:%v", p.params.ID, err)
 	}
 
 	meta := procedure.Meta{

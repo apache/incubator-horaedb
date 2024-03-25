@@ -28,6 +28,7 @@ import (
 	"sort"
 	"sync"
 
+	"github.com/apache/incubator-horaedb-meta/pkg/coderr"
 	"github.com/apache/incubator-horaedb-meta/server/id"
 	"github.com/apache/incubator-horaedb-meta/server/storage"
 	"github.com/pkg/errors"
@@ -199,32 +200,30 @@ func (c *ClusterMetadata) DropTable(ctx context.Context, request DropTableReques
 	c.logger.Info("drop table start", zap.String("cluster", c.Name()), zap.String("schemaName", request.SchemaName), zap.String("tableName", request.TableName))
 
 	if !c.ensureClusterStable() {
-		return errors.WithMessage(ErrClusterStateInvalid, "invalid cluster state, cluster state must be stable")
+		return ErrClusterStateInvalid.WithMessagef("invalid cluster state, cluster state must be stable")
 	}
 
 	table, ok, err := c.tableManager.GetTable(request.SchemaName, request.TableName)
 	if err != nil {
-		return errors.WithMessage(err, "get table")
+		return coderr.Wrapf(err, "get table before dropping, table:%s", request.TableName)
 	}
-
 	if !ok {
-		return ErrTableNotFound
+		return ErrTableNotFound.WithMessagef("drop a non-exist table, table:%s", request.TableName)
 	}
 
 	// Drop table.
 	err = c.tableManager.DropTable(ctx, request.SchemaName, request.TableName)
 	if err != nil {
-		return errors.WithMessage(err, "table manager drop table")
+		return coderr.Wrapf(err, "drop table:%s", request.TableName)
 	}
 
 	// Remove dropped table in shard view.
 	err = c.topologyManager.RemoveTable(ctx, request.ShardID, request.LatestVersion, []storage.TableID{table.ID})
 	if err != nil {
-		return errors.WithMessage(err, "topology manager remove table")
+		return coderr.Wrapf(err, "topology manager remove table:%s", request.TableName)
 	}
 
 	c.logger.Info("drop table success", zap.String("cluster", c.Name()), zap.String("schemaName", request.SchemaName), zap.String("tableName", request.TableName))
-
 	return nil
 }
 
@@ -234,7 +233,7 @@ func (c *ClusterMetadata) MigrateTable(ctx context.Context, request MigrateTable
 	c.logger.Info("migrate table", zap.String("request", fmt.Sprintf("%v", request)))
 
 	if !c.ensureClusterStable() {
-		return errors.WithMessage(ErrClusterStateInvalid, "invalid cluster state, cluster state must be stable")
+		return ErrClusterStateInvalid.WithMessagef("invalid cluster state, cluster state must be stable")
 	}
 
 	tables := make([]storage.Table, 0, len(request.TableNames))
@@ -249,7 +248,7 @@ func (c *ClusterMetadata) MigrateTable(ctx context.Context, request MigrateTable
 
 		if !exists {
 			c.logger.Error("the table to be closed does not exist", zap.String("schemaName", request.SchemaName), zap.String("tableName", tableName))
-			return errors.WithMessagef(ErrTableNotFound, "table not exists, schemaName:%s, tableName:%s", request.SchemaName, tableName)
+			return ErrTableNotFound.WithMessagef("migrate a non-exist table, schema:%s, table:%s", request.SchemaName, tableName)
 		}
 
 		tables = append(tables, table)
@@ -288,38 +287,38 @@ func (c *ClusterMetadata) GetTableShard(ctx context.Context, table storage.Table
 func (c *ClusterMetadata) CreateTableMetadata(ctx context.Context, request CreateTableMetadataRequest) (CreateTableMetadataResult, error) {
 	c.logger.Info("create table start", zap.String("cluster", c.Name()), zap.String("schemaName", request.SchemaName), zap.String("tableName", request.TableName))
 
+	var createRes CreateTableMetadataResult
 	if !c.ensureClusterStable() {
-		return CreateTableMetadataResult{}, errors.WithMessage(ErrClusterStateInvalid, "invalid cluster state, cluster state must be stable")
+		return createRes, ErrClusterStateInvalid.WithMessagef("create tables on an unstable cluster:%s", c.metaData.Name)
 	}
 
 	_, exists, err := c.tableManager.GetTable(request.SchemaName, request.TableName)
 	if err != nil {
-		return CreateTableMetadataResult{}, err
+		return createRes, err
 	}
-
 	if exists {
-		return CreateTableMetadataResult{}, errors.WithMessagef(ErrTableAlreadyExists, "tableName:%s", request.TableName)
+		return createRes, ErrTableAlreadyExists.WithMessagef("table to create already exists, table:%s", request.TableName)
 	}
 
 	// Create table in table manager.
 	table, err := c.tableManager.CreateTable(ctx, request.SchemaName, request.TableName, request.PartitionInfo)
 	if err != nil {
-		return CreateTableMetadataResult{}, errors.WithMessage(err, "table manager create table")
+		return createRes, errors.WithMessage(err, "table manager create table")
 	}
 
-	res := CreateTableMetadataResult{
+	c.logger.Info("create table metadata succeed", zap.String("cluster", c.Name()), zap.String("table", fmt.Sprintf("%+v", table)))
+
+	createRes = CreateTableMetadataResult{
 		Table: table,
 	}
-
-	c.logger.Info("create table metadata succeed", zap.String("cluster", c.Name()), zap.String("result", fmt.Sprintf("%+v", res)))
-	return res, nil
+	return createRes, nil
 }
 
 func (c *ClusterMetadata) AddTableTopology(ctx context.Context, shardVersionUpdate ShardVersionUpdate, table storage.Table) error {
 	c.logger.Info("add table topology start", zap.String("cluster", c.Name()), zap.String("tableName", table.Name))
 
 	if !c.ensureClusterStable() {
-		return errors.WithMessage(ErrClusterStateInvalid, "invalid cluster state, cluster state must be stable")
+		return ErrClusterStateInvalid.WithMessagef("add table topology on an unstable cluster, table:%s", table.Name)
 	}
 
 	// Add table to topology manager.
@@ -337,21 +336,20 @@ func (c *ClusterMetadata) DropTableMetadata(ctx context.Context, schemaName, tab
 
 	var dropRes DropTableMetadataResult
 	if !c.ensureClusterStable() {
-		return dropRes, errors.WithMessage(ErrClusterStateInvalid, "invalid cluster state, cluster state must be stable")
+		return dropRes, ErrClusterStateInvalid.WithMessagef("drop table on an unstable cluster, table:%s", tableName)
 	}
 
 	table, ok, err := c.tableManager.GetTable(schemaName, tableName)
 	if err != nil {
 		return dropRes, errors.WithMessage(err, "get table")
 	}
-
 	if !ok {
-		return dropRes, ErrTableNotFound
+		return dropRes, ErrTableNotFound.WithMessagef("drop a non-exist table:%s", tableName)
 	}
 
 	err = c.tableManager.DropTable(ctx, schemaName, tableName)
 	if err != nil {
-		return dropRes, errors.WithMessage(err, "table manager drop table")
+		return dropRes, coderr.Wrapf(err, "failed to drop table:%s", tableName)
 	}
 
 	c.logger.Info("drop table metadata success", zap.String("cluster", c.Name()), zap.String("schemaName", schemaName), zap.String("tableName", tableName), zap.String("result", fmt.Sprintf("%+v", table)))
@@ -362,46 +360,46 @@ func (c *ClusterMetadata) DropTableMetadata(ctx context.Context, schemaName, tab
 func (c *ClusterMetadata) CreateTable(ctx context.Context, request CreateTableRequest) (CreateTableResult, error) {
 	c.logger.Info("create table start", zap.String("cluster", c.Name()), zap.String("schemaName", request.SchemaName), zap.String("tableName", request.TableName))
 
+	var createRes CreateTableResult
 	if !c.ensureClusterStable() {
-		return CreateTableResult{}, errors.WithMessage(ErrClusterStateInvalid, "invalid cluster state, cluster state must be stable")
+		return createRes, ErrClusterStateInvalid.WithMessagef("create table on an unstable cluster, table:%s", request.TableName)
 	}
 
 	_, exists, err := c.tableManager.GetTable(request.SchemaName, request.TableName)
 	if err != nil {
-		return CreateTableResult{}, err
+		return createRes, err
 	}
-
 	if exists {
-		return CreateTableResult{}, errors.WithMessagef(ErrTableAlreadyExists, "tableName:%s", request.TableName)
+		return createRes, ErrTableAlreadyExists.WithMessagef("create an tableName:%s", request.TableName)
 	}
 
 	// Create table in table manager.
 	table, err := c.tableManager.CreateTable(ctx, request.SchemaName, request.TableName, request.PartitionInfo)
 	if err != nil {
-		return CreateTableResult{}, errors.WithMessage(err, "table manager create table")
+		return createRes, coderr.Wrapf(err, "table manager fails to create table:%s", request.TableName)
 	}
 
 	// Add table to topology manager.
 	err = c.topologyManager.AddTable(ctx, request.ShardID, request.LatestVersion, []storage.Table{table})
 	if err != nil {
-		return CreateTableResult{}, errors.WithMessage(err, "topology manager add table")
+		return createRes, coderr.Wrapf(err, "topology manager add table failed when creating table:%s", request.TableName)
 	}
 
-	ret := CreateTableResult{
+	createRes = CreateTableResult{
 		Table: table,
 		ShardVersionUpdate: ShardVersionUpdate{
 			ShardID:       request.ShardID,
 			LatestVersion: request.LatestVersion,
 		},
 	}
-	c.logger.Info("create table succeed", zap.String("cluster", c.Name()), zap.String("result", fmt.Sprintf("%+v", ret)))
-	return ret, nil
+	c.logger.Info("create table succeed", zap.String("cluster", c.Name()), zap.String("result", fmt.Sprintf("%+v", createRes)))
+	return createRes, nil
 }
 
 func (c *ClusterMetadata) GetTableAssignedShard(ctx context.Context, schemaName string, tableName string) (storage.ShardID, bool, error) {
 	schema, exists := c.tableManager.GetSchema(schemaName)
 	if !exists {
-		return 0, false, errors.WithMessagef(ErrSchemaNotFound, "schema %s not found", schemaName)
+		return 0, false, ErrSchemaNotFound.WithMessagef("get table assigned shard, schema:", schemaName)
 	}
 	shardIDs, exists := c.topologyManager.GetTableAssignedShard(ctx, schema.ID, tableName)
 	return shardIDs, exists, nil
@@ -410,7 +408,7 @@ func (c *ClusterMetadata) GetTableAssignedShard(ctx context.Context, schemaName 
 func (c *ClusterMetadata) AssignTableToShard(ctx context.Context, schemaName string, tableName string, shardID storage.ShardID) error {
 	schema, exists := c.tableManager.GetSchema(schemaName)
 	if !exists {
-		return errors.WithMessagef(ErrSchemaNotFound, "schema %s not found", schemaName)
+		return ErrSchemaNotFound.WithMessagef("assign table to a shard, schema:%s", schemaName)
 	}
 	return c.topologyManager.AssignTableToShard(ctx, schema.ID, tableName, shardID)
 }
@@ -418,7 +416,7 @@ func (c *ClusterMetadata) AssignTableToShard(ctx context.Context, schemaName str
 func (c *ClusterMetadata) DeleteTableAssignedShard(ctx context.Context, schemaName string, tableName string) error {
 	schema, exists := c.tableManager.GetSchema(schemaName)
 	if !exists {
-		return errors.WithMessagef(ErrSchemaNotFound, "schema %s not found", schemaName)
+		return ErrSchemaNotFound.WithMessagef("delete table's assigned shard, schema:%s", schemaName)
 	}
 	return c.topologyManager.DeleteTableAssignedShard(ctx, schema.ID, tableName)
 }

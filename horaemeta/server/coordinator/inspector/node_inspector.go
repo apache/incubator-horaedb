@@ -31,8 +31,8 @@ import (
 	"go.uber.org/zap"
 )
 
-var ErrStartAgain = coderr.NewCodeError(coderr.Internal, "try to start again")
-var ErrStopNotStart = coderr.NewCodeError(coderr.Internal, "try to stop a not-started inspector")
+var ErrStartAgain = coderr.NewCodeErrorDef(coderr.Internal, "try to start NodeInspector again")
+var ErrStopNotStart = coderr.NewCodeErrorDef(coderr.Internal, "try to stop a not-started NodeInspector")
 
 const defaultInspectInterval = time.Second * 5
 
@@ -94,7 +94,7 @@ func (ni *NodeInspector) Start(ctx context.Context) error {
 	})
 
 	if !started {
-		return ErrStartAgain
+		return ErrStartAgain.WithMessagef("")
 	}
 
 	return nil
@@ -106,7 +106,7 @@ func (ni *NodeInspector) Stop(_ context.Context) error {
 		return nil
 	}
 
-	return ErrStopNotStart
+	return ErrStopNotStart.WithMessagef("")
 }
 
 func (ni *NodeInspector) inspect(ctx context.Context) {

@@ -144,7 +144,7 @@ func (f *Factory) makeCreateTableProcedure(ctx context.Context, request CreateTa
 		}
 		if len(shards) != 1 {
 			f.logger.Error("pick table shards length not equal 1", zap.Int("shards", len(shards)))
-			return nil, errors.WithMessagef(procedure.ErrPickShard, "pick table shard, shards length:%d", len(shards))
+			return nil, procedure.ErrPickShard.WithMessagef("too many picked shards, expect only one, but found:%d", len(shards))
 		}
 		targetShardID = shards[request.SourceReq.GetName()].ID
 	}
@@ -183,7 +183,7 @@ func (f *Factory) makeCreatePartitionTableProcedure(ctx context.Context, request
 	for _, subTableShard := range subTableShards {
 		shardView, exists := snapshot.Topology.ShardViewsMapping[subTableShard.ID]
 		if !exists {
-			return nil, errors.WithMessagef(metadata.ErrShardNotFound, "shard not found, shardID:%d", subTableShard.ID)
+			return nil, metadata.ErrShardNotFound.WithMessagef("create partition table procedure, shardID:%d", subTableShard.ID)
 		}
 		shardNodesWithVersion = append(shardNodesWithVersion, metadata.ShardNodeWithVersion{
 			ShardInfo: metadata.ShardInfo{

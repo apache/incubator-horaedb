@@ -24,8 +24,8 @@ import (
 )
 
 var (
-	ErrHelpRequested      = coderr.NewCodeError(coderr.PrintHelpUsage, "help requested")
-	ErrInvalidPeerURL     = coderr.NewCodeError(coderr.InvalidParams, "invalid peers url")
-	ErrInvalidCommandArgs = coderr.NewCodeError(coderr.InvalidParams, "invalid command arguments")
-	ErrRetrieveHostname   = coderr.NewCodeError(coderr.Internal, "retrieve local hostname")
+	ErrHelpRequested      = coderr.NewCodeErrorDef(coderr.PrintHelpUsage, "help requested")
+	ErrInvalidPeerURL     = coderr.NewCodeErrorDef(coderr.InvalidParams, "invalid peers url")
+	ErrInvalidCommandArgs = coderr.NewCodeErrorDef(coderr.InvalidParams, "invalid command arguments")
+	ErrRetrieveHostname   = coderr.NewCodeErrorDef(coderr.Internal, "retrieve local hostname")
 )

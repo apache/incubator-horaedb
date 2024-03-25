@@ -49,7 +49,7 @@ func CreateTableOnShard(ctx context.Context, c *metadata.ClusterMetadata, dispat
 		}
 	}
 	if !found {
-		return 0, errors.WithMessagef(procedure.ErrShardLeaderNotFound, "shard node can't find leader, shardID:%d", shardID)
+		return 0, procedure.ErrShardLeaderNotFound.WithMessagef("create table on shard, shardID:%d", shardID)
 	}
 
 	latestVersion, err := dispatch.CreateTableOnShard(ctx, leader.NodeName, request)
@@ -87,12 +87,13 @@ func BuildCreateTableRequest(table storage.Table, shardVersionUpdate metadata.Sh
 }
 
 func GetTableMetadata(clusterMetadata *metadata.ClusterMetadata, schemaName, tableName string) (storage.Table, error) {
+	var emptyTable storage.Table
 	table, exists, err := clusterMetadata.GetTable(schemaName, tableName)
 	if err != nil {
-		return storage.Table{}, err
+		return emptyTable, err
 	}
 	if !exists {
-		return storage.Table{}, errors.WithMessagef(procedure.ErrTableNotExists, "table not exists, tableName:%s", tableName)
+		return emptyTable, procedure.ErrTableNotExists.WithMessagef("get table metadata, table:%s", tableName)
 	}
 	return table, nil
 }
@@ -125,7 +126,7 @@ func BuildShardVersionUpdate(table storage.Table, clusterMetadata *metadata.Clus
 
 	latestVersion, exists := shardVersions[leader.ID]
 	if !exists {
-		return versionUpdate, false, errors.WithMessagef(metadata.ErrShardNotFound, "shard not found in shardVersions, shardID:%d", leader.ID)
+		return versionUpdate, false, metadata.ErrShardNotFound.WithMessagef("shard not found in shardVersions when build shard version update, shardID:%d", leader.ID)
 	}
 
 	versionUpdate = metadata.ShardVersionUpdate{

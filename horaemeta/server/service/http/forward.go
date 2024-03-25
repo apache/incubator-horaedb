@@ -125,7 +125,7 @@ func formatHTTPAddr(grpcAddr string, httpPort int) (string, error) {
 	}
 	hostAndPort := strings.Split(url.Host, ":")
 	if len(hostAndPort) != 2 {
-		return "", errors.WithMessagef(ErrParseLeaderAddr, "parse leader addr, grpcAdd:%s", grpcAddr)
+		return "", ErrParseLeaderAddr.WithMessagef("parse leader addr, grpcAdd:%s", grpcAddr)
 	}
 	hostAndPort[1] = strconv.Itoa(httpPort)
 	httpAddr := strings.Join(hostAndPort, ":")

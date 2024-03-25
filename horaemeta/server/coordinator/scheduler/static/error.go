@@ -21,4 +21,4 @@ package static
 
 import "github.com/apache/incubator-horaedb-meta/pkg/coderr"
 
-var ErrNotImplemented = coderr.NewCodeError(coderr.ErrNotImplemented, "no")
+var ErrNotImplemented = coderr.NewCodeErrorDef(coderr.ErrNotImplemented, "no")

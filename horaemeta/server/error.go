@@ -22,9 +22,9 @@ package server
 import "github.com/apache/incubator-horaedb-meta/pkg/coderr"
 
 var (
-	ErrCreateEtcdClient    = coderr.NewCodeError(coderr.Internal, "create etcd etcdCli")
-	ErrStartEtcd           = coderr.NewCodeError(coderr.Internal, "start embed etcd")
-	ErrStartEtcdTimeout    = coderr.NewCodeError(coderr.Internal, "start etcd server timeout")
-	ErrStartServer         = coderr.NewCodeError(coderr.Internal, "start server")
-	ErrFlowLimiterNotFound = coderr.NewCodeError(coderr.Internal, "flow limiter not found")
+	ErrCreateEtcdClient    = coderr.NewCodeErrorDef(coderr.Internal, "create etcd etcdCli")
+	ErrStartEtcd           = coderr.NewCodeErrorDef(coderr.Internal, "start embed etcd")
+	ErrStartEtcdTimeout    = coderr.NewCodeErrorDef(coderr.Internal, "start etcd server timeout")
+	ErrStartServer         = coderr.NewCodeErrorDef(coderr.Internal, "start server")
+	ErrFlowLimiterNotFound = coderr.NewCodeErrorDef(coderr.Internal, "flow limiter not found")
 )
