@@ -506,7 +506,35 @@ impl Proxy {
             .await?;
 
         let mut success = 0;
-        for insert_plan in plan_vec {
+
+        // TODO: concurrently run the insert plan here
+        for plan in plan_vec {
+            // check limit first
+            // TODO: if one table is blocked, maybe should not lead to failure of whole
+            // batch?
+            self.instance
+                .limiter
+                .try_limit(&plan)
+                .box_err()
+                .context(ErrWithCause {
+                    code: StatusCode::INTERNAL_SERVER_ERROR,
+                    msg: "table is blocked",
+                })?;
+
+            let insert_plan = match plan {
+                Plan::Insert(p) => p,
+                other => {
+                    return ErrNoCause {
+                        msg: format!(
+                            "found invalid plan type, expected:insert, actual:{}",
+                            other.plan_type()
+                        ),
+                        code: StatusCode::INTERNAL_SERVER_ERROR,
+                    }
+                    .fail()
+                }
+            };
+
             let table = insert_plan.table.clone();
             match self
                 .execute_insert_plan(
@@ -544,7 +572,7 @@ impl Proxy {
         &self,
         table_requests: Vec<WriteTableRequest>,
         write_context: WriteContext,
-    ) -> Result<Vec<InsertPlan>> {
+    ) -> Result<Vec<Plan>> {
         let mut plan_vec = Vec::with_capacity(table_requests.len());
 
         let WriteContext {
@@ -602,7 +630,7 @@ impl Proxy {
                 }
                 Ok(v) => v,
             };
-            plan_vec.push(plan);
+            plan_vec.push(Plan::Insert(plan));
         }
 
         Ok(plan_vec)

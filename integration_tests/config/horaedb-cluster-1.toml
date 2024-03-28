@@ -56,5 +56,5 @@ timeout = "5s"
 server_addrs = ['127.0.0.1:2379']
 
 [limiter]
-write_block_list = ['mytable1']
-read_block_list = ['mytable1']
+write_block_list = ['block_test_table']
+read_block_list = ['block_test_table']

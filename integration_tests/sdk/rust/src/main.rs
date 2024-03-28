@@ -31,6 +31,7 @@ use horaedb_client::{
 };
 
 const ENDPOINT: &str = "127.0.0.1:8831";
+const BLOCKED_TABLE: &str = "block_test_table";
 
 struct TestDatas {
     col_names: Vec<String>,
@@ -83,11 +84,12 @@ async fn main() {
     let now = current_timestamp_ms();
 
     let test_datas = generate_test_datas(now);
-
     test_auto_create_table(&client, &rpc_ctx, now, &test_datas).await;
     test_add_column(&client, &rpc_ctx, now, &test_datas).await;
+    test_block_table(&client, &rpc_ctx, now).await;
 
-    drop_table_if_exists(&client, &rpc_ctx, now).await;
+    drop_test_table_if_exists(&client, &rpc_ctx, now).await;
+    drop_table_if_exists(&client, &rpc_ctx, BLOCKED_TABLE).await;
     print!("Test done")
 }
 
@@ -99,7 +101,7 @@ async fn test_auto_create_table(
 ) {
     println!("Test auto create table");
 
-    drop_table_if_exists(client, rpc_ctx, timestamp).await;
+    drop_test_table_if_exists(client, rpc_ctx, timestamp).await;
 
     write(client, rpc_ctx, timestamp, test_datas, false).await;
     sql_query(client, rpc_ctx, timestamp, test_datas, false).await;
@@ -117,11 +119,71 @@ async fn test_add_column(
     sql_query(client, rpc_ctx, timestamp, test_datas, true).await;
 }
 
-async fn drop_table_if_exists(client: &Arc<dyn DbClient>, rpc_ctx: &RpcContext, timestamp: i64) {
-    let test_table = format!("test_table_{timestamp}");
+async fn test_block_table(client: &Arc<dyn DbClient>, rpc_ctx: &RpcContext, timestamp: i64) {
+    println!("Test auto create table");
+
+    drop_table_if_exists(client, rpc_ctx, BLOCKED_TABLE).await;
+    create_table(client, rpc_ctx, BLOCKED_TABLE).await;
+
+    // try to write, should return table blocked error
+    let mut write_req = WriteRequest::default();
+    let mut points = Vec::new();
+    let builder = PointBuilder::new(BLOCKED_TABLE.to_string())
+        .timestamp(timestamp)
+        .tag("name", Value::String("name1".to_string()))
+        .field("value", Value::Double(0.42));
+    let point = builder.build().unwrap();
+    points.push(point);
+    write_req.add_points(points);
+    if let Err(e) = client.write(rpc_ctx, &write_req).await {
+        let e = e.to_string();
+        assert!(e.contains("Table operation is blocked"));
+    } else {
+        panic!("it should return blocked error");
+    }
+
+    // try to query, should be blocked, too
     let query_req = SqlQueryRequest {
-        tables: vec![test_table.clone()],
-        sql: format!("DROP TABLE IF EXISTS {test_table}"),
+        tables: vec![BLOCKED_TABLE.to_string()],
+        sql: format!("SELECT * from {}", BLOCKED_TABLE),
+    };
+    if let Err(e) = client.sql_query(rpc_ctx, &query_req).await {
+        let e = e.to_string();
+        assert!(e.contains("Table operation is blocked"));
+    } else {
+        panic!("it should return blocked error");
+    }
+}
+
+async fn drop_test_table_if_exists(
+    client: &Arc<dyn DbClient>,
+    rpc_ctx: &RpcContext,
+    timestamp: i64,
+) {
+    let test_table = format!("test_table_{timestamp}");
+    drop_table_if_exists(client, rpc_ctx, &test_table).await;
+}
+
+async fn drop_table_if_exists(client: &Arc<dyn DbClient>, rpc_ctx: &RpcContext, table: &str) {
+    let query_req = SqlQueryRequest {
+        tables: vec![table.to_string()],
+        sql: format!("DROP TABLE IF EXISTS {table}"),
+    };
+    let _ = client.sql_query(rpc_ctx, &query_req).await.unwrap();
+}
+
+async fn create_table(client: &Arc<dyn DbClient>, rpc_ctx: &RpcContext, table: &str) {
+    let query_req = SqlQueryRequest {
+        tables: vec![table.to_string()],
+        sql: format!(
+            "
+        CREATE TABLE {} (
+            name string TAG,
+            value double NOT NULL,
+            t timestamp NOT NULL,
+            timestamp KEY (t))",
+            table
+        ),
     };
     let _ = client.sql_query(rpc_ctx, &query_req).await.unwrap();
 }

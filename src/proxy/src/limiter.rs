@@ -30,11 +30,11 @@ use crate::metrics::BLOCKED_REQUEST_COUNTER_VEC_GLOBAL;
 #[derive(Snafu, Debug)]
 #[snafu(visibility(pub))]
 pub enum Error {
-    #[snafu(display("Queried table is blocked, table:{}", table,))]
-    BlockedTable { table: String },
+    #[snafu(display("Table operation is blocked, table:{}, op:{}", table, op))]
+    BlockedTable { table: String, op: String },
 
-    #[snafu(display("Query is blocked by rule:{:?}", rule))]
-    BlockedByRule { rule: BlockRule },
+    #[snafu(display("Table operation is blocked by rule:{:?}, op:{}", rule, op))]
+    BlockedByRule { rule: BlockRule, op: String },
 }
 
 define_result!(Error);
@@ -158,6 +158,7 @@ impl Limiter {
                         {
                             BlockedTable {
                                 table: blocked_table,
+                                op: plan.plan_type(),
                             }
                             .fail()?;
                         }
@@ -174,6 +175,7 @@ impl Limiter {
                 {
                     BlockedTable {
                         table: insert.table.name(),
+                        op: plan.plan_type(),
                     }
                     .fail()?;
                 }
@@ -187,7 +189,11 @@ impl Limiter {
     fn try_limit_by_rules(&self, plan: &Plan) -> Result<()> {
         self.rules.read().unwrap().iter().try_for_each(|rule| {
             if rule.should_limit(plan) {
-                BlockedByRule { rule: *rule }.fail()?;
+                BlockedByRule {
+                    rule: *rule,
+                    op: plan.plan_type(),
+                }
+                .fail()?;
             }
 
             Ok(())
