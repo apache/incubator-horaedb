@@ -28,8 +28,6 @@ import (
 	"net/http"
 	"net/http/pprof"
 
-	"github.com/apache/incubator-horaedb-proto/golang/pkg/clusterpb"
-
 	"github.com/apache/incubator-horaedb-meta/pkg/coderr"
 	"github.com/apache/incubator-horaedb-meta/pkg/log"
 	"github.com/apache/incubator-horaedb-meta/server/cluster"
@@ -42,6 +40,7 @@ import (
 	"github.com/apache/incubator-horaedb-meta/server/member"
 	"github.com/apache/incubator-horaedb-meta/server/status"
 	"github.com/apache/incubator-horaedb-meta/server/storage"
+	"github.com/apache/incubator-horaedb-proto/golang/pkg/clusterpb"
 	clientv3 "go.etcd.io/etcd/client/v3"
 	"go.uber.org/zap"
 )
@@ -655,14 +654,9 @@ func (a *API) diagnoseTable(r *http.Request) apiFuncResult {
 		return errResult(ErrParseRequest, err.Error())
 	}
 
-	result, err := a.clusterManager.RouteTables(context.Background(), req.ClusterName, req.SchemaName, req.Names)
+	existedTables, err := a.getExistedTables(req.ClusterName, req.SchemaName, req.Names)
 	if err != nil {
 		return errResult(ErrTable, err.Error())
-	}
-
-	existedTables := make(map[string]metadata.RouteEntry, len(result.RouteEntries))
-	for _, tableInfo := range result.RouteEntries {
-		existedTables[tableInfo.Table.Name] = tableInfo
 	}
 
 	partitionTableNames := make(map[string][]string, 0)
@@ -675,44 +669,70 @@ func (a *API) diagnoseTable(r *http.Request) apiFuncResult {
 	}
 
 	for _, name := range req.Names {
-		if tableInfo, ok := existedTables[name]; !ok {
+		tableInfo, ok := existedTables[name]
+		if !ok {
 			ret.UnExistedTables = append(ret.UnExistedTables, name)
-		} else {
-			if tableInfo.Table.PartitionInfo.Info != nil {
-				partitionTableNames[name] = getPartitionTableNames(existedTables[name].Table)
-			} else {
-				if len(tableInfo.NodeShards) != 0 {
-					ret.ExistedTables.Tables = append(ret.ExistedTables.Tables, TableInfo{TableName: name, NodeName: tableInfo.NodeShards[0].ShardNode.NodeName, ShardID: tableInfo.NodeShards[0].ShardNode.ID})
-					continue
-				}
-				ret.NoShardTables = append(ret.NoShardTables, name)
-			}
+			continue
 		}
+
+		if tableInfo.Table.PartitionInfo.Info != nil {
+			partitionTableNames[name] = getPartitionTableNames(existedTables[name].Table)
+			continue
+		}
+
+		if len(tableInfo.NodeShards) == 0 {
+			ret.NoShardTables = append(ret.NoShardTables, name)
+			continue
+		}
+
+		ret.ExistedTables.Tables = append(ret.ExistedTables.Tables, TableInfo{
+			TableName: name,
+			NodeName:  tableInfo.NodeShards[0].ShardNode.NodeName,
+			ShardID:   tableInfo.NodeShards[0].ShardNode.ID,
+		})
 	}
 
 	for name, partitionTableNames := range partitionTableNames {
-		result, err = a.clusterManager.RouteTables(context.Background(), req.ClusterName, req.SchemaName, partitionTableNames)
+		existedPartitionTables, err := a.getExistedTables(req.ClusterName, req.SchemaName, partitionTableNames)
 		if err != nil {
 			return errResult(ErrTable, err.Error())
 		}
-		existedPartitionTables := make(map[string]metadata.RouteEntry, len(result.RouteEntries))
-		for _, tableInfo := range result.RouteEntries {
-			existedPartitionTables[tableInfo.Table.Name] = tableInfo
-		}
+
 		for _, partitionTableName := range partitionTableNames {
-			if tableInfo, ok := existedPartitionTables[partitionTableName]; !ok {
+			tableInfo, ok := existedPartitionTables[partitionTableName]
+			if !ok {
 				ret.UnExistedPartitionTables[name] = append(ret.UnExistedPartitionTables[name], partitionTableName)
-			} else {
-				if len(tableInfo.NodeShards) != 0 {
-					ret.ExistedTables.PartitionTables[name] = append(ret.ExistedTables.PartitionTables[name], TableInfo{TableName: partitionTableName, NodeName: tableInfo.NodeShards[0].ShardNode.NodeName, ShardID: tableInfo.NodeShards[0].ShardNode.ID})
-					continue
-				}
-				ret.NoShardPartitionTables[name] = append(ret.NoShardPartitionTables[name], partitionTableName)
+				continue
 			}
+
+			if len(tableInfo.NodeShards) == 0 {
+				ret.NoShardPartitionTables[name] = append(ret.NoShardPartitionTables[name], partitionTableName)
+				continue
+			}
+
+			ret.ExistedTables.PartitionTables[name] = append(ret.ExistedTables.PartitionTables[name], TableInfo{
+				TableName: partitionTableName,
+				NodeName:  tableInfo.NodeShards[0].ShardNode.NodeName,
+				ShardID:   tableInfo.NodeShards[0].ShardNode.ID,
+			})
 		}
 	}
 
 	return okResult(ret)
+}
+
+func (a *API) getExistedTables(clusterName, schemaName string, tableNames []string) (map[string]metadata.RouteEntry, error) {
+	result, err := a.clusterManager.RouteTables(context.Background(), clusterName, schemaName, tableNames)
+	if err != nil {
+		return nil, err
+	}
+
+	existedTables := make(map[string]metadata.RouteEntry, len(result.RouteEntries))
+	for _, tableInfo := range result.RouteEntries {
+		existedTables[tableInfo.Table.Name] = tableInfo
+	}
+
+	return existedTables, nil
 }
 
 func (a *API) health(_ *http.Request) apiFuncResult {
