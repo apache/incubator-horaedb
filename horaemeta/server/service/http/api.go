@@ -90,7 +90,7 @@ func (a *API) NewAPIRouter() *Router {
 	router.DebugGet("/pprof/goroutine", a.pprofGoroutine)
 	router.DebugGet("/pprof/threadCreate", a.pprofThreadCreate)
 	router.DebugGet(fmt.Sprintf("/diagnose/:%s/shards", clusterNameParam), wrap(a.diagnoseShards, true, a.forwardClient))
-	router.DebugPost(fmt.Sprintf("/diagnose/tables"), wrap(a.diagnoseTable, true, a.forwardClient))
+	router.DebugPost("/diagnose/tables", wrap(a.diagnoseTable, true, a.forwardClient))
 	router.DebugGet("/leader", wrap(a.getLeader, false, a.forwardClient))
 	router.DebugGet(fmt.Sprintf("/clusters/:%s/enableSchedule", clusterNameParam), wrap(a.getEnableSchedule, true, a.forwardClient))
 	router.DebugPut(fmt.Sprintf("/clusters/:%s/enableSchedule", clusterNameParam), wrap(a.updateEnableSchedule, true, a.forwardClient))
