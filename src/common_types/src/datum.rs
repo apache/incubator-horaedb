@@ -17,7 +17,11 @@
 
 //! Datum holds different kind of data
 
-use std::{convert::TryFrom, fmt, str};
+use std::{
+    convert::TryFrom,
+    fmt,
+    str::{self, from_utf8, Utf8Error},
+};
 
 use arrow::{
     datatypes::{DataType, TimeUnit},
@@ -100,6 +104,13 @@ pub enum Error {
     #[snafu(display("Invalid hex value, hex_val:{hex_val}.\nBacktrace:\n{backtrace}"))]
     InvalidHexValue {
         hex_val: String,
+        backtrace: Backtrace,
+    },
+
+    #[snafu(display("Invalid string encoding, that are not utf-8 characters input:{msg}, err:{source}. \nBacktrace:\n{backtrace}"))]
+    InvalidStringEncoding {
+        msg: String,
+        source: Utf8Error,
         backtrace: Backtrace,
     },
 }
@@ -765,6 +776,11 @@ impl Datum {
         }
     }
 
+    fn valid_is_utf8(s: &str) -> Result<()> {
+        from_utf8(s.as_bytes()).context(InvalidStringEncoding { msg: s })?;
+        Ok(())
+    }
+
     pub fn try_from_sql_value(kind: &DatumKind, value: Value) -> Result<Datum> {
         match (kind, value) {
             (DatumKind::Null, Value::Null) => Ok(Datum::Null),
@@ -790,12 +806,15 @@ impl Datum {
             }
             // TODO(yingwen): Support hex string.
             (DatumKind::Varbinary, Value::SingleQuotedString(s)) => {
+                Self::valid_is_utf8(&s)?;
                 Ok(Datum::Varbinary(Bytes::from(s)))
             }
             (DatumKind::String, Value::SingleQuotedString(s)) => {
+                Self::valid_is_utf8(&s)?;
                 Ok(Datum::String(StringBytes::from(s)))
             }
             (DatumKind::Varbinary, Value::DoubleQuotedString(s)) => {
+                Self::valid_is_utf8(&s)?;
                 Ok(Datum::Varbinary(Bytes::from(s)))
             }
             (DatumKind::Varbinary, Value::HexStringLiteral(s)) => {
@@ -803,6 +822,7 @@ impl Datum {
                 Ok(Datum::Varbinary(Bytes::from(bytes)))
             }
             (DatumKind::String, Value::DoubleQuotedString(s)) => {
+                Self::valid_is_utf8(&s)?;
                 Ok(Datum::String(StringBytes::from(s)))
             }
             (DatumKind::UInt64, Value::Number(n, _long)) => {
