@@ -44,7 +44,7 @@ use id_allocator::IdAllocator;
 use logger::{debug, info};
 use macros::define_result;
 use object_store::Path;
-use snafu::{Backtrace, OptionExt, ResultExt, Snafu};
+use snafu::{ensure, Backtrace, OptionExt, ResultExt, Snafu};
 use table_engine::table::{SchemaId, TableId};
 use time_ext::ReadableDuration;
 
@@ -95,6 +95,9 @@ pub enum Error {
 
     #[snafu(display("Failed to alloc file id, err:{}", source))]
     AllocFileId { source: GenericError },
+
+    #[snafu(display("Found invalid table opts, msg:{msg}.\nBacktrace:\n{backtrace}"))]
+    InvalidTableOpts { msg: String, backtrace: Backtrace },
 }
 
 define_result!(Error);
@@ -323,13 +326,20 @@ impl TableData {
             MemtableType::Column => Arc::new(ColumnarMemTableFactory),
         };
 
-        // Wrap it by `LayeredMemtable`.
-        let mutable_segment_switch_threshold = opts
-            .layered_memtable_opts
-            .mutable_segment_switch_threshold
-            .0 as usize;
-        let enable_layered_memtable = mutable_segment_switch_threshold > 0;
+        let enable_layered_memtable = opts.layered_memtable_opts.enable;
         let memtable_factory = if enable_layered_memtable {
+            let mutable_segment_switch_threshold = opts
+                .layered_memtable_opts
+                .mutable_segment_switch_threshold
+                .0 as usize;
+
+            ensure!(
+                mutable_segment_switch_threshold > 0,
+                InvalidTableOpts {
+                    msg: "layered memtable is enabled but mutable_switch_threshold is 0",
+                }
+            );
+
             Arc::new(LayeredMemtableFactory::new(
                 memtable_factory,
                 mutable_segment_switch_threshold,
@@ -403,13 +413,21 @@ impl TableData {
             MemtableType::Column => Arc::new(ColumnarMemTableFactory),
         };
         // Maybe wrap it by `LayeredMemtable`.
-        let mutable_segment_switch_threshold = add_meta
-            .opts
-            .layered_memtable_opts
-            .mutable_segment_switch_threshold
-            .0 as usize;
-        let enable_layered_memtable = mutable_segment_switch_threshold > 0;
+        let enable_layered_memtable = add_meta.opts.layered_memtable_opts.enable;
         let memtable_factory = if enable_layered_memtable {
+            let mutable_segment_switch_threshold = add_meta
+                .opts
+                .layered_memtable_opts
+                .mutable_segment_switch_threshold
+                .0 as usize;
+
+            ensure!(
+                mutable_segment_switch_threshold > 0,
+                InvalidTableOpts {
+                    msg: "layered memtable is enabled but mutable_switch_threshold is 0",
+                }
+            );
+
             Arc::new(LayeredMemtableFactory::new(
                 memtable_factory,
                 mutable_segment_switch_threshold,

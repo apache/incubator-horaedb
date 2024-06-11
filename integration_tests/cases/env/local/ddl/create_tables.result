@@ -52,6 +52,26 @@ DROP TABLE IF EXISTS `05_create_tables_t9`;
 
 affected_rows: 0
 
+DROP TABLE IF EXISTS `05_create_tables_t10`;
+
+affected_rows: 0
+
+DROP TABLE IF EXISTS `05_create_tables_t11`;
+
+affected_rows: 0
+
+DROP TABLE IF EXISTS `05_timestamp_not_in_primary_key`;
+
+affected_rows: 0
+
+DROP TABLE IF EXISTS `05_enable_layered_memtable_for_append`;
+
+affected_rows: 0
+
+DROP TABLE IF EXISTS `05_enable_layered_memtable_for_overwrite`;
+
+affected_rows: 0
+
 -- no TIMESTAMP column
 CREATE TABLE `05_create_tables_t`(c1 int) ENGINE = Analytic;
 
@@ -68,7 +88,7 @@ affected_rows: 0
 -- table already exist
 CREATE TABLE `05_create_tables_t`(c1 int, t timestamp NOT NULL, TIMESTAMP KEY(t)) ENGINE = Analytic;
 
-Failed to execute query, err: Server(ServerError { code: 500, msg: "Failed to execute plan. Caused by: Internal error, msg:Failed to execute interpreter, err:Failed to execute create table, err:Failed to create table by table manipulator, err:Failed to operate table, err:Failed to operate table, msg:Some(\"failed to create table on shard, request:CreateTableRequest { params: CreateTableParams { catalog_name: \\\"horaedb\\\", schema_name: \\\"public\\\", table_name: \\\"05_create_tables_t\\\", table_options: {}, table_schema: Schema { timestamp_index: 1, tsid_index: Some(0), column_schemas: ColumnSchemas { columns: [ColumnSchema { id: 1, name: \\\"tsid\\\", data_type: UInt64, is_nullable: false, is_tag: false, is_dictionary: false, comment: \\\"\\\", escaped_name: \\\"tsid\\\", default_value: None }, ColumnSchema { id: 2, name: \\\"t\\\", data_type: Timestamp, is_nullable: false, is_tag: false, is_dictionary: false, comment: \\\"\\\", escaped_name: \\\"t\\\", default_value: None }, ColumnSchema { id: 3, name: \\\"c1\\\", data_type: Int32, is_nullable: true, is_tag: false, is_dictionary: false, comment: \\\"\\\", escaped_name: \\\"c1\\\", default_value: None }] }, version: 1, primary_key_indexes: [0, 1] }, partition_info: None, engine: \\\"Analytic\\\" }, table_id: None, state: Stable, shard_id: 0 }\"), err:Failed to create table, table already exists, table:05_create_tables_t. sql:CREATE TABLE `05_create_tables_t`(c1 int, t timestamp NOT NULL, TIMESTAMP KEY(t)) ENGINE = Analytic;" })
+Failed to execute query, err: Server(ServerError { code: 500, msg: "Failed to execute plan. Caused by: Internal error, msg:Failed to execute interpreter, err:Failed to execute create table, err:Failed to create table by table manipulator, err:Failed to operate table, err:Failed to operate table, msg:Some(\"failed to create table on shard, request:CreateTableRequest { params: CreateTableParams { catalog_name: \\\"horaedb\\\", schema_name: \\\"public\\\", table_name: \\\"05_create_tables_t\\\", table_options: [], table_schema: Schema { timestamp_index: 1, tsid_index: Some(0), column_schemas: ColumnSchemas { columns: [ColumnSchema { id: 1, name: \\\"tsid\\\", data_type: UInt64, is_nullable: false, is_tag: false, is_dictionary: false, comment: \\\"\\\", escaped_name: \\\"tsid\\\", default_value: None }, ColumnSchema { id: 2, name: \\\"t\\\", data_type: Timestamp, is_nullable: false, is_tag: false, is_dictionary: false, comment: \\\"\\\", escaped_name: \\\"t\\\", default_value: None }, ColumnSchema { id: 3, name: \\\"c1\\\", data_type: Int32, is_nullable: true, is_tag: false, is_dictionary: false, comment: \\\"\\\", escaped_name: \\\"c1\\\", default_value: None }] }, version: 1, primary_key_indexes: [0, 1] }, partition_info: None, engine: \\\"Analytic\\\" }, table_id: None, state: Stable, shard_id: 0 }\"), err:Failed to create table, table already exists, table:05_create_tables_t. sql:CREATE TABLE `05_create_tables_t`(c1 int, t timestamp NOT NULL, TIMESTAMP KEY(t)) ENGINE = Analytic;" })
 
 create table `05_create_tables_t2`(a int, b int, t timestamp NOT NULL, TIMESTAMP KEY(t)) ENGINE = Analytic with (enable_ttl='false');
 
@@ -88,12 +108,12 @@ Int32(4),
 -- table already exist
 create table `05_create_tables_t2`(a int,b int, t timestamp NOT NULL, TIMESTAMP KEY(t)) ENGINE = Analytic;
 
-Failed to execute query, err: Server(ServerError { code: 500, msg: "Failed to execute plan. Caused by: Internal error, msg:Failed to execute interpreter, err:Failed to execute create table, err:Failed to create table by table manipulator, err:Failed to operate table, err:Failed to operate table, msg:Some(\"failed to create table on shard, request:CreateTableRequest { params: CreateTableParams { catalog_name: \\\"horaedb\\\", schema_name: \\\"public\\\", table_name: \\\"05_create_tables_t2\\\", table_options: {}, table_schema: Schema { timestamp_index: 1, tsid_index: Some(0), column_schemas: ColumnSchemas { columns: [ColumnSchema { id: 1, name: \\\"tsid\\\", data_type: UInt64, is_nullable: false, is_tag: false, is_dictionary: false, comment: \\\"\\\", escaped_name: \\\"tsid\\\", default_value: None }, ColumnSchema { id: 2, name: \\\"t\\\", data_type: Timestamp, is_nullable: false, is_tag: false, is_dictionary: false, comment: \\\"\\\", escaped_name: \\\"t\\\", default_value: None }, ColumnSchema { id: 3, name: \\\"a\\\", data_type: Int32, is_nullable: true, is_tag: false, is_dictionary: false, comment: \\\"\\\", escaped_name: \\\"a\\\", default_value: None }, ColumnSchema { id: 4, name: \\\"b\\\", data_type: Int32, is_nullable: true, is_tag: false, is_dictionary: false, comment: \\\"\\\", escaped_name: \\\"b\\\", default_value: None }] }, version: 1, primary_key_indexes: [0, 1] }, partition_info: None, engine: \\\"Analytic\\\" }, table_id: None, state: Stable, shard_id: 0 }\"), err:Failed to create table, table already exists, table:05_create_tables_t2. sql:create table `05_create_tables_t2`(a int,b int, t timestamp NOT NULL, TIMESTAMP KEY(t)) ENGINE = Analytic;" })
+Failed to execute query, err: Server(ServerError { code: 500, msg: "Failed to execute plan. Caused by: Internal error, msg:Failed to execute interpreter, err:Failed to execute create table, err:Failed to create table by table manipulator, err:Failed to operate table, err:Failed to operate table, msg:Some(\"failed to create table on shard, request:CreateTableRequest { params: CreateTableParams { catalog_name: \\\"horaedb\\\", schema_name: \\\"public\\\", table_name: \\\"05_create_tables_t2\\\", table_options: [], table_schema: Schema { timestamp_index: 1, tsid_index: Some(0), column_schemas: ColumnSchemas { columns: [ColumnSchema { id: 1, name: \\\"tsid\\\", data_type: UInt64, is_nullable: false, is_tag: false, is_dictionary: false, comment: \\\"\\\", escaped_name: \\\"tsid\\\", default_value: None }, ColumnSchema { id: 2, name: \\\"t\\\", data_type: Timestamp, is_nullable: false, is_tag: false, is_dictionary: false, comment: \\\"\\\", escaped_name: \\\"t\\\", default_value: None }, ColumnSchema { id: 3, name: \\\"a\\\", data_type: Int32, is_nullable: true, is_tag: false, is_dictionary: false, comment: \\\"\\\", escaped_name: \\\"a\\\", default_value: None }, ColumnSchema { id: 4, name: \\\"b\\\", data_type: Int32, is_nullable: true, is_tag: false, is_dictionary: false, comment: \\\"\\\", escaped_name: \\\"b\\\", default_value: None }] }, version: 1, primary_key_indexes: [0, 1] }, partition_info: None, engine: \\\"Analytic\\\" }, table_id: None, state: Stable, shard_id: 0 }\"), err:Failed to create table, table already exists, table:05_create_tables_t2. sql:create table `05_create_tables_t2`(a int,b int, t timestamp NOT NULL, TIMESTAMP KEY(t)) ENGINE = Analytic;" })
 
 -- table already exist
 create table `05_create_tables_t2`(a int,b int, t timestamp NOT NULL, TIMESTAMP KEY(t)) ENGINE = Analytic;
 
-Failed to execute query, err: Server(ServerError { code: 500, msg: "Failed to execute plan. Caused by: Internal error, msg:Failed to execute interpreter, err:Failed to execute create table, err:Failed to create table by table manipulator, err:Failed to operate table, err:Failed to operate table, msg:Some(\"failed to create table on shard, request:CreateTableRequest { params: CreateTableParams { catalog_name: \\\"horaedb\\\", schema_name: \\\"public\\\", table_name: \\\"05_create_tables_t2\\\", table_options: {}, table_schema: Schema { timestamp_index: 1, tsid_index: Some(0), column_schemas: ColumnSchemas { columns: [ColumnSchema { id: 1, name: \\\"tsid\\\", data_type: UInt64, is_nullable: false, is_tag: false, is_dictionary: false, comment: \\\"\\\", escaped_name: \\\"tsid\\\", default_value: None }, ColumnSchema { id: 2, name: \\\"t\\\", data_type: Timestamp, is_nullable: false, is_tag: false, is_dictionary: false, comment: \\\"\\\", escaped_name: \\\"t\\\", default_value: None }, ColumnSchema { id: 3, name: \\\"a\\\", data_type: Int32, is_nullable: true, is_tag: false, is_dictionary: false, comment: \\\"\\\", escaped_name: \\\"a\\\", default_value: None }, ColumnSchema { id: 4, name: \\\"b\\\", data_type: Int32, is_nullable: true, is_tag: false, is_dictionary: false, comment: \\\"\\\", escaped_name: \\\"b\\\", default_value: None }] }, version: 1, primary_key_indexes: [0, 1] }, partition_info: None, engine: \\\"Analytic\\\" }, table_id: None, state: Stable, shard_id: 0 }\"), err:Failed to create table, table already exists, table:05_create_tables_t2. sql:create table `05_create_tables_t2`(a int,b int, t timestamp NOT NULL, TIMESTAMP KEY(t)) ENGINE = Analytic;" })
+Failed to execute query, err: Server(ServerError { code: 500, msg: "Failed to execute plan. Caused by: Internal error, msg:Failed to execute interpreter, err:Failed to execute create table, err:Failed to create table by table manipulator, err:Failed to operate table, err:Failed to operate table, msg:Some(\"failed to create table on shard, request:CreateTableRequest { params: CreateTableParams { catalog_name: \\\"horaedb\\\", schema_name: \\\"public\\\", table_name: \\\"05_create_tables_t2\\\", table_options: [], table_schema: Schema { timestamp_index: 1, tsid_index: Some(0), column_schemas: ColumnSchemas { columns: [ColumnSchema { id: 1, name: \\\"tsid\\\", data_type: UInt64, is_nullable: false, is_tag: false, is_dictionary: false, comment: \\\"\\\", escaped_name: \\\"tsid\\\", default_value: None }, ColumnSchema { id: 2, name: \\\"t\\\", data_type: Timestamp, is_nullable: false, is_tag: false, is_dictionary: false, comment: \\\"\\\", escaped_name: \\\"t\\\", default_value: None }, ColumnSchema { id: 3, name: \\\"a\\\", data_type: Int32, is_nullable: true, is_tag: false, is_dictionary: false, comment: \\\"\\\", escaped_name: \\\"a\\\", default_value: None }, ColumnSchema { id: 4, name: \\\"b\\\", data_type: Int32, is_nullable: true, is_tag: false, is_dictionary: false, comment: \\\"\\\", escaped_name: \\\"b\\\", default_value: None }] }, version: 1, primary_key_indexes: [0, 1] }, partition_info: None, engine: \\\"Analytic\\\" }, table_id: None, state: Stable, shard_id: 0 }\"), err:Failed to create table, table already exists, table:05_create_tables_t2. sql:create table `05_create_tables_t2`(a int,b int, t timestamp NOT NULL, TIMESTAMP KEY(t)) ENGINE = Analytic;" })
 
 create table `05_create_tables_t3`(a int,b int, t timestamp NOT NULL, TIMESTAMP KEY(t)) ENGINE = Analytic;
 
@@ -114,7 +134,7 @@ String("a"),String("int"),Boolean(false),Boolean(true),Boolean(false),Boolean(fa
 show create table `05_create_tables_t4`;
 
 Table,Create Table,
-String("05_create_tables_t4"),String("CREATE TABLE `05_create_tables_t4` (`tsid` uint64 NOT NULL, `t` timestamp NOT NULL, `a` int, PRIMARY KEY(tsid,t), TIMESTAMP KEY(t)) ENGINE=Analytic WITH(arena_block_size='2097152', compaction_strategy='default', compression='ZSTD', enable_ttl='true', memtable_type='skiplist', num_rows_per_row_group='8192', segment_duration='', storage_format='AUTO', ttl='7d', update_mode='OVERWRITE', write_buffer_size='33554432')"),
+String("05_create_tables_t4"),String("CREATE TABLE `05_create_tables_t4` (`tsid` uint64 NOT NULL, `t` timestamp NOT NULL, `a` int, PRIMARY KEY(tsid,t), TIMESTAMP KEY(t)) ENGINE=Analytic WITH(arena_block_size='2097152', compaction_strategy='default', compression='ZSTD', enable_ttl='true', layered_enable='false', layered_mutable_switch_threshold='3145728', memtable_type='skiplist', num_rows_per_row_group='8192', segment_duration='', storage_format='AUTO', ttl='7d', update_mode='OVERWRITE', write_buffer_size='33554432')"),
 
 
 -- TIMESTAMP KEY
@@ -133,7 +153,7 @@ String("c1"),String("int"),Boolean(false),Boolean(true),Boolean(false),Boolean(f
 show create table `05_create_tables_t5`;
 
 Table,Create Table,
-String("05_create_tables_t5"),String("CREATE TABLE `05_create_tables_t5` (`tsid` uint64 NOT NULL, `t` timestamp NOT NULL, `c1` int, PRIMARY KEY(tsid,t), TIMESTAMP KEY(t)) ENGINE=Analytic WITH(arena_block_size='2097152', compaction_strategy='default', compression='ZSTD', enable_ttl='true', memtable_type='skiplist', num_rows_per_row_group='8192', segment_duration='', storage_format='AUTO', ttl='7d', update_mode='OVERWRITE', write_buffer_size='33554432')"),
+String("05_create_tables_t5"),String("CREATE TABLE `05_create_tables_t5` (`tsid` uint64 NOT NULL, `t` timestamp NOT NULL, `c1` int, PRIMARY KEY(tsid,t), TIMESTAMP KEY(t)) ENGINE=Analytic WITH(arena_block_size='2097152', compaction_strategy='default', compression='ZSTD', enable_ttl='true', layered_enable='false', layered_mutable_switch_threshold='3145728', memtable_type='skiplist', num_rows_per_row_group='8192', segment_duration='', storage_format='AUTO', ttl='7d', update_mode='OVERWRITE', write_buffer_size='33554432')"),
 
 
 -- Multiple TIMESTAMP KEYs
@@ -157,7 +177,7 @@ String("c1"),String("int"),Boolean(false),Boolean(true),Boolean(false),Boolean(f
 show create table `05_create_tables_t7`;
 
 Table,Create Table,
-String("05_create_tables_t7"),String("CREATE TABLE `05_create_tables_t7` (`tsid` uint64 NOT NULL, `t` timestamp NOT NULL, `c1` int COMMENT 'id', PRIMARY KEY(tsid,t), TIMESTAMP KEY(t)) ENGINE=Analytic WITH(arena_block_size='2097152', compaction_strategy='default', compression='ZSTD', enable_ttl='true', memtable_type='skiplist', num_rows_per_row_group='8192', segment_duration='', storage_format='AUTO', ttl='7d', update_mode='OVERWRITE', write_buffer_size='33554432')"),
+String("05_create_tables_t7"),String("CREATE TABLE `05_create_tables_t7` (`tsid` uint64 NOT NULL, `t` timestamp NOT NULL, `c1` int COMMENT 'id', PRIMARY KEY(tsid,t), TIMESTAMP KEY(t)) ENGINE=Analytic WITH(arena_block_size='2097152', compaction_strategy='default', compression='ZSTD', enable_ttl='true', layered_enable='false', layered_mutable_switch_threshold='3145728', memtable_type='skiplist', num_rows_per_row_group='8192', segment_duration='', storage_format='AUTO', ttl='7d', update_mode='OVERWRITE', write_buffer_size='33554432')"),
 
 
 -- StorageFormat
@@ -168,7 +188,7 @@ affected_rows: 0
 show create table `05_create_tables_t8`;
 
 Table,Create Table,
-String("05_create_tables_t8"),String("CREATE TABLE `05_create_tables_t8` (`tsid` uint64 NOT NULL, `t1` timestamp NOT NULL, `c1` int, PRIMARY KEY(tsid,t1), TIMESTAMP KEY(t1)) ENGINE=Analytic WITH(arena_block_size='2097152', compaction_strategy='default', compression='ZSTD', enable_ttl='true', memtable_type='skiplist', num_rows_per_row_group='8192', segment_duration='', storage_format='AUTO', ttl='7d', update_mode='OVERWRITE', write_buffer_size='33554432')"),
+String("05_create_tables_t8"),String("CREATE TABLE `05_create_tables_t8` (`tsid` uint64 NOT NULL, `t1` timestamp NOT NULL, `c1` int, PRIMARY KEY(tsid,t1), TIMESTAMP KEY(t1)) ENGINE=Analytic WITH(arena_block_size='2097152', compaction_strategy='default', compression='ZSTD', enable_ttl='true', layered_enable='false', layered_mutable_switch_threshold='3145728', memtable_type='skiplist', num_rows_per_row_group='8192', segment_duration='', storage_format='AUTO', ttl='7d', update_mode='OVERWRITE', write_buffer_size='33554432')"),
 
 
 drop table `05_create_tables_t8`;
@@ -182,7 +202,7 @@ affected_rows: 0
 show create table `05_create_tables_t8`;
 
 Table,Create Table,
-String("05_create_tables_t8"),String("CREATE TABLE `05_create_tables_t8` (`tsid` uint64 NOT NULL, `t1` timestamp NOT NULL, `c1` int, PRIMARY KEY(tsid,t1), TIMESTAMP KEY(t1)) ENGINE=Analytic WITH(arena_block_size='2097152', compaction_strategy='default', compression='ZSTD', enable_ttl='true', memtable_type='skiplist', num_rows_per_row_group='8192', segment_duration='', storage_format='COLUMNAR', ttl='7d', update_mode='OVERWRITE', write_buffer_size='33554432')"),
+String("05_create_tables_t8"),String("CREATE TABLE `05_create_tables_t8` (`tsid` uint64 NOT NULL, `t1` timestamp NOT NULL, `c1` int, PRIMARY KEY(tsid,t1), TIMESTAMP KEY(t1)) ENGINE=Analytic WITH(arena_block_size='2097152', compaction_strategy='default', compression='ZSTD', enable_ttl='true', layered_enable='false', layered_mutable_switch_threshold='3145728', memtable_type='skiplist', num_rows_per_row_group='8192', segment_duration='', storage_format='COLUMNAR', ttl='7d', update_mode='OVERWRITE', write_buffer_size='33554432')"),
 
 
 drop table `05_create_tables_t8`;
@@ -196,7 +216,7 @@ affected_rows: 0
 show create table `05_create_tables_t9`;
 
 Table,Create Table,
-String("05_create_tables_t9"),String("CREATE TABLE `05_create_tables_t9` (`tsid` uint64 NOT NULL, `t1` timestamp NOT NULL, `c1` int, `d` string DICTIONARY, PRIMARY KEY(tsid,t1), TIMESTAMP KEY(t1)) ENGINE=Analytic WITH(arena_block_size='2097152', compaction_strategy='default', compression='ZSTD', enable_ttl='true', memtable_type='skiplist', num_rows_per_row_group='8192', segment_duration='', storage_format='COLUMNAR', ttl='7d', update_mode='OVERWRITE', write_buffer_size='33554432')"),
+String("05_create_tables_t9"),String("CREATE TABLE `05_create_tables_t9` (`tsid` uint64 NOT NULL, `t1` timestamp NOT NULL, `c1` int, `d` string DICTIONARY, PRIMARY KEY(tsid,t1), TIMESTAMP KEY(t1)) ENGINE=Analytic WITH(arena_block_size='2097152', compaction_strategy='default', compression='ZSTD', enable_ttl='true', layered_enable='false', layered_mutable_switch_threshold='3145728', memtable_type='skiplist', num_rows_per_row_group='8192', segment_duration='', storage_format='COLUMNAR', ttl='7d', update_mode='OVERWRITE', write_buffer_size='33554432')"),
 
 
 drop table `05_create_tables_t9`;
@@ -210,7 +230,7 @@ affected_rows: 0
 show create table `05_create_tables_t9`;
 
 Table,Create Table,
-String("05_create_tables_t9"),String("CREATE TABLE `05_create_tables_t9` (`tsid` uint64 NOT NULL, `t1` timestamp NOT NULL, `c1` int, `d` string DICTIONARY, PRIMARY KEY(tsid,t1), TIMESTAMP KEY(t1)) ENGINE=Analytic WITH(arena_block_size='2097152', compaction_strategy='default', compression='ZSTD', enable_ttl='true', memtable_type='skiplist', num_rows_per_row_group='8192', segment_duration='', storage_format='AUTO', ttl='7d', update_mode='OVERWRITE', write_buffer_size='33554432')"),
+String("05_create_tables_t9"),String("CREATE TABLE `05_create_tables_t9` (`tsid` uint64 NOT NULL, `t1` timestamp NOT NULL, `c1` int, `d` string DICTIONARY, PRIMARY KEY(tsid,t1), TIMESTAMP KEY(t1)) ENGINE=Analytic WITH(arena_block_size='2097152', compaction_strategy='default', compression='ZSTD', enable_ttl='true', layered_enable='false', layered_mutable_switch_threshold='3145728', memtable_type='skiplist', num_rows_per_row_group='8192', segment_duration='', storage_format='AUTO', ttl='7d', update_mode='OVERWRITE', write_buffer_size='33554432')"),
 
 
 drop table `05_create_tables_t9`;
@@ -232,7 +252,7 @@ affected_rows: 0
 show create table `05_create_tables_t9`;
 
 Table,Create Table,
-String("05_create_tables_t9"),String("CREATE TABLE `05_create_tables_t9` (`tsid` uint64 NOT NULL, `t1` timestamp NOT NULL, `c1` int, `c2` bigint DEFAULT 0, `c3` uint32 DEFAULT 1 + 1, `c4` string DEFAULT 'xxx', `c5` uint32 DEFAULT c3 * 2 + 1, PRIMARY KEY(tsid,t1), TIMESTAMP KEY(t1)) ENGINE=Analytic WITH(arena_block_size='2097152', compaction_strategy='default', compression='ZSTD', enable_ttl='true', memtable_type='skiplist', num_rows_per_row_group='8192', segment_duration='', storage_format='AUTO', ttl='7d', update_mode='OVERWRITE', write_buffer_size='33554432')"),
+String("05_create_tables_t9"),String("CREATE TABLE `05_create_tables_t9` (`tsid` uint64 NOT NULL, `t1` timestamp NOT NULL, `c1` int, `c2` bigint DEFAULT 0, `c3` uint32 DEFAULT 1 + 1, `c4` string DEFAULT 'xxx', `c5` uint32 DEFAULT c3 * 2 + 1, PRIMARY KEY(tsid,t1), TIMESTAMP KEY(t1)) ENGINE=Analytic WITH(arena_block_size='2097152', compaction_strategy='default', compression='ZSTD', enable_ttl='true', layered_enable='false', layered_mutable_switch_threshold='3145728', memtable_type='skiplist', num_rows_per_row_group='8192', segment_duration='', storage_format='AUTO', ttl='7d', update_mode='OVERWRITE', write_buffer_size='33554432')"),
 
 
 drop table `05_create_tables_t9`;
@@ -247,7 +267,7 @@ affected_rows: 0
 show create table `05_create_tables_t10`;
 
 Table,Create Table,
-String("05_create_tables_t10"),String("CREATE TABLE `05_create_tables_t10` (`tsid` uint64 NOT NULL, `t1` timestamp NOT NULL, `c1` int, PRIMARY KEY(tsid,t1), TIMESTAMP KEY(t1)) ENGINE=Analytic WITH(arena_block_size='2097152', compaction_strategy='default', compression='ZSTD', enable_ttl='true', memtable_type='skiplist', num_rows_per_row_group='8192', segment_duration='', storage_format='AUTO', ttl='7d', update_mode='OVERWRITE', write_buffer_size='33554432')"),
+String("05_create_tables_t10"),String("CREATE TABLE `05_create_tables_t10` (`tsid` uint64 NOT NULL, `t1` timestamp NOT NULL, `c1` int, PRIMARY KEY(tsid,t1), TIMESTAMP KEY(t1)) ENGINE=Analytic WITH(arena_block_size='2097152', compaction_strategy='default', compression='ZSTD', enable_ttl='true', layered_enable='false', layered_mutable_switch_threshold='3145728', memtable_type='skiplist', num_rows_per_row_group='8192', segment_duration='', storage_format='AUTO', ttl='7d', update_mode='OVERWRITE', write_buffer_size='33554432')"),
 
 
 drop table `05_create_tables_t10`;
@@ -262,7 +282,7 @@ affected_rows: 0
 show create table `05_create_tables_t11`;
 
 Table,Create Table,
-String("05_create_tables_t11"),String("CREATE TABLE `05_create_tables_t11` (`t1` timestamp NOT NULL, `tsid` uint64 NOT NULL, `c1` int, PRIMARY KEY(t1,tsid), TIMESTAMP KEY(t1)) ENGINE=Analytic WITH(arena_block_size='2097152', compaction_strategy='default', compression='ZSTD', enable_ttl='true', memtable_type='skiplist', num_rows_per_row_group='8192', segment_duration='', storage_format='AUTO', ttl='7d', update_mode='OVERWRITE', write_buffer_size='33554432')"),
+String("05_create_tables_t11"),String("CREATE TABLE `05_create_tables_t11` (`t1` timestamp NOT NULL, `tsid` uint64 NOT NULL, `c1` int, PRIMARY KEY(t1,tsid), TIMESTAMP KEY(t1)) ENGINE=Analytic WITH(arena_block_size='2097152', compaction_strategy='default', compression='ZSTD', enable_ttl='true', layered_enable='false', layered_mutable_switch_threshold='3145728', memtable_type='skiplist', num_rows_per_row_group='8192', segment_duration='', storage_format='AUTO', ttl='7d', update_mode='OVERWRITE', write_buffer_size='33554432')"),
 
 
 drop table `05_create_tables_t11`;
@@ -273,6 +293,16 @@ affected_rows: 0
 CREATE TABLE `05_timestamp_not_in_primary_key`(c1 int NOT NULL, t timestamp NOT NULL, TIMESTAMP KEY(t), PRIMARY KEY(c1)) ENGINE = Analytic;
 
 Failed to execute query, err: Server(ServerError { code: 500, msg: "Failed to create plan. Caused by: Failed to create plan, err:Failed to build schema, err:Timestamp not in primary key. sql:CREATE TABLE `05_timestamp_not_in_primary_key`(c1 int NOT NULL, t timestamp NOT NULL, TIMESTAMP KEY(t), PRIMARY KEY(c1)) ENGINE = Analytic;" })
+
+-- Valid, try to create append mode table with invalid layered memtable enabling
+CREATE TABLE `05_enable_layered_memtable_for_append`(c1 int NOT NULL, t timestamp NOT NULL, TIMESTAMP KEY(t)) ENGINE = Analytic with (layered_enable='true', layered_mutable_switch_threshold='3MB', update_mode='APPEND');
+
+affected_rows: 0
+
+-- Invalid, try to create overwrite mode table with invalid layered memtable enabling
+CREATE TABLE `05_enable_layered_memtable_for_overwrite`(c1 int NOT NULL, t timestamp NOT NULL, TIMESTAMP KEY(t)) ENGINE = Analytic with (layered_enable='true', layered_mutable_switch_threshold='3MB', update_mode='OVERWRITE');
+
+Failed to execute query, err: Server(ServerError { code: 500, msg: "Failed to execute plan. Caused by: Internal error, msg:Failed to execute interpreter, err:Failed to execute create table, err:Failed to create table by table manipulator, err:Failed to operate table, err:Failed to operate table, msg:Some(\"failed to create table on shard, request:CreateTableRequest { params: CreateTableParams { catalog_name: \\\"horaedb\\\", schema_name: \\\"public\\\", table_name: \\\"05_enable_layered_memtable_for_overwrite\\\", table_options: [(\\\"layered_enable\\\", \\\"true\\\"), (\\\"layered_mutable_switch_threshold\\\", \\\"3MB\\\"), (\\\"update_mode\\\", \\\"OVERWRITE\\\")], table_schema: Schema { timestamp_index: 1, tsid_index: Some(0), column_schemas: ColumnSchemas { columns: [ColumnSchema { id: 1, name: \\\"tsid\\\", data_type: UInt64, is_nullable: false, is_tag: false, is_dictionary: false, comment: \\\"\\\", escaped_name: \\\"tsid\\\", default_value: None }, ColumnSchema { id: 2, name: \\\"t\\\", data_type: Timestamp, is_nullable: false, is_tag: false, is_dictionary: false, comment: \\\"\\\", escaped_name: \\\"t\\\", default_value: None }, ColumnSchema { id: 3, name: \\\"c1\\\", data_type: Int32, is_nullable: false, is_tag: false, is_dictionary: false, comment: \\\"\\\", escaped_name: \\\"c1\\\", default_value: None }] }, version: 1, primary_key_indexes: [0, 1] }, partition_info: None, engine: \\\"Analytic\\\" }, table_id: None, state: Stable, shard_id: 0 }\"), err:Failed to create table, err:Unexpected error, err:Found invalid table options, reason:layered memtable is enabled for table needing dedup, layered_memtable_opts:LayeredMemtableOptions { enable: true, mutable_segment_switch_threshold: ReadableSize(3145728) }, update_mode:Overwrite. sql:CREATE TABLE `05_enable_layered_memtable_for_overwrite`(c1 int NOT NULL, t timestamp NOT NULL, TIMESTAMP KEY(t)) ENGINE = Analytic with (layered_enable='true', layered_mutable_switch_threshold='3MB', update_mode='OVERWRITE');" })
 
 DROP TABLE IF EXISTS `05_create_tables_t`;
 
@@ -318,7 +348,15 @@ DROP TABLE IF EXISTS `05_create_tables_t11`;
 
 affected_rows: 0
 
-DROP TABLE IF EXISTS `05_create_tables_t12`;
+DROP TABLE IF EXISTS `05_timestamp_not_in_primary_key`;
+
+affected_rows: 0
+
+DROP TABLE IF EXISTS `05_enable_layered_memtable_for_append`;
+
+affected_rows: 0
+
+DROP TABLE IF EXISTS `05_enable_layered_memtable_for_overwrite`;
 
 affected_rows: 0
 

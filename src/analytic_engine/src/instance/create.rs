@@ -28,7 +28,7 @@ use table_engine::{
 use crate::{
     instance::{
         engine::{
-            CreateOpenFailedTable, InvalidOptions, Result, TableNotExist,
+            CreateOpenFailedTable, InvalidOptions, InvalidTableOptions, Result, TableNotExist,
             TryCreateRandomPartitionTableInOverwriteMode, WriteManifest,
         },
         Instance,
@@ -48,6 +48,10 @@ impl Instance {
                 .context(InvalidOptions {
                     table: &params.table_name,
                 })?;
+
+        if let Some(reason) = table_opts.check_validity() {
+            return InvalidTableOptions { reason }.fail();
+        }
 
         if let Some(partition_info) = &params.partition_info {
             let dedup_on_random_partition =

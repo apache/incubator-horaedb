@@ -17,7 +17,8 @@
 
 //! Table factory trait
 
-use std::{collections::HashMap, sync::Arc};
+use core::fmt;
+use std::{collections::HashMap, fmt::Debug, sync::Arc};
 
 use async_trait::async_trait;
 use common_types::{
@@ -26,6 +27,7 @@ use common_types::{
 };
 use generic_error::{GenericError, GenericResult};
 use horaedbproto::sys_catalog as sys_catalog_pb;
+use itertools::Itertools;
 use macros::define_result;
 use runtime::{PriorityRuntime, RuntimeRef};
 use snafu::{ensure, Backtrace, Snafu};
@@ -159,7 +161,7 @@ pub enum TableRequestType {
 }
 
 /// The necessary params used to create table.
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub struct CreateTableParams {
     pub catalog_name: String,
     pub schema_name: String,
@@ -168,6 +170,30 @@ pub struct CreateTableParams {
     pub table_schema: Schema,
     pub partition_info: Option<PartitionInfo>,
     pub engine: String,
+}
+
+impl Debug for CreateTableParams {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let table_opts_formatter = TableOptionsFormatter(&self.table_options);
+        f.debug_struct("CreateTableParams")
+            .field("catalog_name", &self.catalog_name)
+            .field("schema_name", &self.schema_name)
+            .field("table_name", &self.table_name)
+            .field("table_options", &table_opts_formatter)
+            .field("table_schema", &self.table_schema)
+            .field("partition_info", &self.partition_info)
+            .field("engine", &self.engine)
+            .finish()
+    }
+}
+
+struct TableOptionsFormatter<'a>(&'a HashMap<String, String>);
+
+impl<'a> Debug for TableOptionsFormatter<'a> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let sorted_iter = self.0.iter().sorted();
+        f.debug_list().entries(sorted_iter).finish()
+    }
 }
 
 /// Create table request

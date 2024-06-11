@@ -20,7 +20,7 @@ DROP TABLE IF EXISTS `05_alter_table_t0`;
 
 affected_rows: 0
 
-CREATE TABLE `05_alter_table_t0`(a int, t timestamp NOT NULL, dic string dictionary, TIMESTAMP KEY(t)) ENGINE = Analytic with (enable_ttl='false');
+CREATE TABLE `05_alter_table_t0`(a int, t timestamp NOT NULL, dic string dictionary, TIMESTAMP KEY(t)) ENGINE = Analytic with (enable_ttl='false', update_mode='OVERWRITE');
 
 affected_rows: 0
 
@@ -116,6 +116,16 @@ UInt64(0),Timestamp(1),Int32(1),String("d1"),String(""),String(""),
 UInt64(0),Timestamp(2),Int32(2),String("d11"),String("2"),String("d22"),
 UInt64(0),Timestamp(3),Int32(3),String("d22"),String("3"),String("d33"),
 
+
+-- try to enable layered memtable with invalid 0 mutable switch threshold
+ALTER TABLE `05_alter_table_t0` MODIFY SETTING layered_enable='true',layered_mutable_switch_threshold='0';
+
+Failed to execute query, err: Server(ServerError { code: 500, msg: "Failed to execute plan. Caused by: Internal error, msg:Failed to execute interpreter, err:Failed to execute alter table, err:Failed to alter table options, err:Failed to alter options, table:05_alter_table_t0, err:Found invalid table options, reason:layered memtable is enabled but mutable_switch_threshold is 0, layered_memtable_opts:LayeredMemtableOptions { enable: true, mutable_segment_switch_threshold: ReadableSize(0) }. sql:ALTER TABLE `05_alter_table_t0` MODIFY SETTING layered_enable='true',layered_mutable_switch_threshold='0';" })
+
+-- try to enable layered memtable for overwrite mode table
+ALTER TABLE `05_alter_table_t0` MODIFY SETTING layered_enable='true',layered_mutable_switch_threshold='3MB';
+
+Failed to execute query, err: Server(ServerError { code: 500, msg: "Failed to execute plan. Caused by: Internal error, msg:Failed to execute interpreter, err:Failed to execute alter table, err:Failed to alter table options, err:Failed to alter options, table:05_alter_table_t0, err:Found invalid table options, reason:layered memtable is enabled for table needing dedup, layered_memtable_opts:LayeredMemtableOptions { enable: true, mutable_segment_switch_threshold: ReadableSize(3145728) }, update_mode:Overwrite. sql:ALTER TABLE `05_alter_table_t0` MODIFY SETTING layered_enable='true',layered_mutable_switch_threshold='3MB';" })
 
 DROP TABLE `05_alter_table_t0`;
 

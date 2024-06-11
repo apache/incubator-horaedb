@@ -35,7 +35,7 @@ affected_rows: 0
 SHOW CREATE TABLE `06_show_a`;
 
 Table,Create Table,
-String("06_show_a"),String("CREATE TABLE `06_show_a` (`tsid` uint64 NOT NULL, `t` timestamp NOT NULL, `a` bigint, `b` int DEFAULT 3, `c` string DEFAULT 'x', `d` smallint, PRIMARY KEY(tsid,t), TIMESTAMP KEY(t)) ENGINE=Analytic WITH(arena_block_size='2097152', compaction_strategy='default', compression='ZSTD', enable_ttl='true', memtable_type='skiplist', num_rows_per_row_group='8192', segment_duration='', storage_format='AUTO', ttl='7d', update_mode='OVERWRITE', write_buffer_size='33554432')"),
+String("06_show_a"),String("CREATE TABLE `06_show_a` (`tsid` uint64 NOT NULL, `t` timestamp NOT NULL, `a` bigint, `b` int DEFAULT 3, `c` string DEFAULT 'x', `d` smallint, PRIMARY KEY(tsid,t), TIMESTAMP KEY(t)) ENGINE=Analytic WITH(arena_block_size='2097152', compaction_strategy='default', compression='ZSTD', enable_ttl='true', layered_enable='false', layered_mutable_switch_threshold='3145728', memtable_type='skiplist', num_rows_per_row_group='8192', segment_duration='', storage_format='AUTO', ttl='7d', update_mode='OVERWRITE', write_buffer_size='33554432')"),
 
 
 CREATE TABLE `06_show_b` (a bigint, b int null default null, c string, d smallint null, t timestamp NOT NULL, TIMESTAMP KEY(t)) ENGINE = Analytic;
@@ -45,7 +45,7 @@ affected_rows: 0
 SHOW CREATE TABLE `06_show_b`;
 
 Table,Create Table,
-String("06_show_b"),String("CREATE TABLE `06_show_b` (`tsid` uint64 NOT NULL, `t` timestamp NOT NULL, `a` bigint, `b` int DEFAULT NULL, `c` string, `d` smallint, PRIMARY KEY(tsid,t), TIMESTAMP KEY(t)) ENGINE=Analytic WITH(arena_block_size='2097152', compaction_strategy='default', compression='ZSTD', enable_ttl='true', memtable_type='skiplist', num_rows_per_row_group='8192', segment_duration='', storage_format='AUTO', ttl='7d', update_mode='OVERWRITE', write_buffer_size='33554432')"),
+String("06_show_b"),String("CREATE TABLE `06_show_b` (`tsid` uint64 NOT NULL, `t` timestamp NOT NULL, `a` bigint, `b` int DEFAULT NULL, `c` string, `d` smallint, PRIMARY KEY(tsid,t), TIMESTAMP KEY(t)) ENGINE=Analytic WITH(arena_block_size='2097152', compaction_strategy='default', compression='ZSTD', enable_ttl='true', layered_enable='false', layered_mutable_switch_threshold='3145728', memtable_type='skiplist', num_rows_per_row_group='8192', segment_duration='', storage_format='AUTO', ttl='7d', update_mode='OVERWRITE', write_buffer_size='33554432')"),
 
 
 CREATE TABLE `06_show_c` (a int, t timestamp NOT NULL, TIMESTAMP KEY(t)) ENGINE = Analytic;
@@ -55,7 +55,7 @@ affected_rows: 0
 SHOW CREATE TABLE `06_show_c`;
 
 Table,Create Table,
-String("06_show_c"),String("CREATE TABLE `06_show_c` (`tsid` uint64 NOT NULL, `t` timestamp NOT NULL, `a` int, PRIMARY KEY(tsid,t), TIMESTAMP KEY(t)) ENGINE=Analytic WITH(arena_block_size='2097152', compaction_strategy='default', compression='ZSTD', enable_ttl='true', memtable_type='skiplist', num_rows_per_row_group='8192', segment_duration='', storage_format='AUTO', ttl='7d', update_mode='OVERWRITE', write_buffer_size='33554432')"),
+String("06_show_c"),String("CREATE TABLE `06_show_c` (`tsid` uint64 NOT NULL, `t` timestamp NOT NULL, `a` int, PRIMARY KEY(tsid,t), TIMESTAMP KEY(t)) ENGINE=Analytic WITH(arena_block_size='2097152', compaction_strategy='default', compression='ZSTD', enable_ttl='true', layered_enable='false', layered_mutable_switch_threshold='3145728', memtable_type='skiplist', num_rows_per_row_group='8192', segment_duration='', storage_format='AUTO', ttl='7d', update_mode='OVERWRITE', write_buffer_size='33554432')"),
 
 
 DROP TABLE `06_show_a`;

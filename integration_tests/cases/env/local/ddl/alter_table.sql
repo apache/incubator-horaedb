@@ -19,7 +19,7 @@
 
 DROP TABLE IF EXISTS `05_alter_table_t0`;
 
-CREATE TABLE `05_alter_table_t0`(a int, t timestamp NOT NULL, dic string dictionary, TIMESTAMP KEY(t)) ENGINE = Analytic with (enable_ttl='false');
+CREATE TABLE `05_alter_table_t0`(a int, t timestamp NOT NULL, dic string dictionary, TIMESTAMP KEY(t)) ENGINE = Analytic with (enable_ttl='false', update_mode='OVERWRITE');
 INSERT INTO TABLE `05_alter_table_t0`(a, t, dic) values(1, 1 , "d1");
 SELECT * FROM `05_alter_table_t0`;
 
@@ -44,5 +44,11 @@ SELECT * FROM `05_alter_table_t0`;
 ALTER TABLE `05_alter_table_t0` DROP COLUMN b;
 DESCRIBE TABLE `05_alter_table_t0`;
 SELECT * FROM `05_alter_table_t0`;
+
+-- try to enable layered memtable with invalid 0 mutable switch threshold
+ALTER TABLE `05_alter_table_t0` MODIFY SETTING layered_enable='true',layered_mutable_switch_threshold='0';
+
+-- try to enable layered memtable for overwrite mode table
+ALTER TABLE `05_alter_table_t0` MODIFY SETTING layered_enable='true',layered_mutable_switch_threshold='3MB';
 
 DROP TABLE `05_alter_table_t0`;

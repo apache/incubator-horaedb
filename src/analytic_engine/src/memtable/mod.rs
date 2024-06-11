@@ -26,9 +26,8 @@ mod reversed_iter;
 pub mod skiplist;
 pub mod test_util;
 
-use std::{collections::HashMap, ops::Bound, sync::Arc, time::Instant};
+use std::{ops::Bound, sync::Arc, time::Instant};
 
-use anyhow::Context;
 use bytes_ext::{ByteVec, Bytes};
 use common_types::{
     projected_schema::RowProjectorBuilder,
@@ -36,7 +35,7 @@ use common_types::{
     row::Row,
     schema::{IndexInWriterSchema, Schema},
     time::TimeRange,
-    SequenceNumber, MUTABLE_SEGMENT_SWITCH_THRESHOLD,
+    SequenceNumber,
 };
 pub use error::Error;
 use horaedbproto::manifest;
@@ -82,35 +81,45 @@ impl ToString for MemtableType {
 #[derive(Debug, Clone, Deserialize, PartialEq, Serialize)]
 #[serde(default)]
 pub struct LayeredMemtableOptions {
+    pub enable: bool,
     pub mutable_segment_switch_threshold: ReadableSize,
+}
+
+impl LayeredMemtableOptions {
+    #[inline]
+    pub fn enable_layered_memtable(&self) -> bool {
+        self.enable && self.mutable_segment_switch_threshold.0 > 0
+    }
 }
 
 impl Default for LayeredMemtableOptions {
     fn default() -> Self {
         Self {
+            enable: false,
             mutable_segment_switch_threshold: ReadableSize::mb(3),
         }
     }
 }
 
-impl LayeredMemtableOptions {
-    pub fn parse_from(opts: &HashMap<String, String>) -> Result<Self> {
-        let mut options = LayeredMemtableOptions::default();
-        if let Some(v) = opts.get(MUTABLE_SEGMENT_SWITCH_THRESHOLD) {
-            let threshold = v
-                .parse::<u64>()
-                .with_context(|| format!("invalid mutable segment switch threshold:{v}"))?;
-            options.mutable_segment_switch_threshold = ReadableSize(threshold);
-        }
-
-        Ok(options)
-    }
-}
-
 impl From<manifest::LayeredMemtableOptions> for LayeredMemtableOptions {
     fn from(value: manifest::LayeredMemtableOptions) -> Self {
+        // For compatibility here.
+        // Layered memtable is enabled default in former,
+        // so some horaedb service is running with layered memtable in production
+        // and we shouldn't make difference to such exist running services
+        // after switching to control layered memtable's on/off with the new added
+        // `enable` field in manifest(that says `enable` should assume to true when not
+        // exist).
+        // However, pb version used now don't support to define default value
+        // explicitly, and default value of bool is always false...
+        // So we use `disable` rather than `enable` in pb to reach it
+        // (disable: false --> enable: true).
+        let enable = !value.disable;
+        let mutable_segment_switch_threshold = ReadableSize(value.mutable_segment_switch_threshold);
+
         Self {
-            mutable_segment_switch_threshold: ReadableSize(value.mutable_segment_switch_threshold),
+            enable,
+            mutable_segment_switch_threshold,
         }
     }
 }
@@ -119,6 +128,7 @@ impl From<LayeredMemtableOptions> for manifest::LayeredMemtableOptions {
     fn from(value: LayeredMemtableOptions) -> Self {
         Self {
             mutable_segment_switch_threshold: value.mutable_segment_switch_threshold.0,
+            disable: !value.enable,
         }
     }
 }

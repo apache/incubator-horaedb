@@ -17,12 +17,12 @@
 
 //! Constants for table options.
 
-use std::{collections::HashMap, string::ToString, time::Duration};
+use std::{collections::HashMap, str::FromStr, string::ToString, time::Duration};
 
 use common_types::{
-    time::Timestamp, ARENA_BLOCK_SIZE, COMPACTION_STRATEGY, COMPRESSION, ENABLE_TTL, MEMTABLE_TYPE,
-    NUM_ROWS_PER_ROW_GROUP, OPTION_KEY_ENABLE_TTL, SEGMENT_DURATION, STORAGE_FORMAT, TTL,
-    UPDATE_MODE, WRITE_BUFFER_SIZE,
+    time::Timestamp, ARENA_BLOCK_SIZE, COMPACTION_STRATEGY, COMPRESSION, ENABLE_TTL,
+    LAYERED_ENABLE, LAYERED_MUTABLE_SWITCH_THRESHOLD, MEMTABLE_TYPE, NUM_ROWS_PER_ROW_GROUP,
+    OPTION_KEY_ENABLE_TTL, SEGMENT_DURATION, STORAGE_FORMAT, TTL, UPDATE_MODE, WRITE_BUFFER_SIZE,
 };
 use datafusion::parquet::basic::Compression as ParquetCompression;
 use horaedbproto::manifest as manifest_pb;
@@ -140,12 +140,9 @@ pub enum Error {
     HybridDeprecated { backtrace: Backtrace },
 
     #[snafu(display(
-        "Failed to parse layered memtable options, err:{source}.\nBacktrace:\n{backtrace}",
+        "Failed to parse layered memtable options, msg:{msg}.\nBacktrace:\n{backtrace}",
     ))]
-    ParseLayeredMemtableOptions {
-        source: crate::memtable::Error,
-        backtrace: Backtrace,
-    },
+    ParseLayeredMemtableOptions { msg: String, backtrace: Backtrace },
 
     #[snafu(display("Layered memtable options is missing.\nBacktrace:\n{backtrace}",))]
     MissingLayeredMemtableOptions { backtrace: Backtrace },
@@ -468,12 +465,51 @@ impl TableOptions {
                 self.storage_format_hint.to_string(),
             ),
             (MEMTABLE_TYPE.to_string(), self.memtable_type.to_string()),
+            (
+                LAYERED_ENABLE.to_string(),
+                self.layered_memtable_opts.enable.to_string(),
+            ),
+            (
+                LAYERED_MUTABLE_SWITCH_THRESHOLD.to_string(),
+                self.layered_memtable_opts
+                    .mutable_segment_switch_threshold
+                    .0
+                    .to_string(),
+            ),
         ]
         .into_iter()
         .collect();
         self.compaction_strategy.fill_raw_map(&mut m);
 
         m
+    }
+
+    /// Check if the options are valid.
+    /// If invalid, Some(reason) will be returned.
+    /// If valid, None will be returned
+    pub fn check_validity(&self) -> Option<String> {
+        if self.layered_memtable_opts.enable
+            && self
+                .layered_memtable_opts
+                .mutable_segment_switch_threshold
+                .0
+                == 0
+        {
+            return Some(format!(
+                "layered memtable is enabled but mutable_switch_threshold is 0, layered_memtable_opts:{:?}",
+                self.layered_memtable_opts,
+            ));
+        }
+
+        // layered memtable is not support in overwrite mode
+        if self.need_dedup() && self.layered_memtable_opts.enable {
+            return Some(format!(
+                "layered memtable is enabled for table needing dedup, layered_memtable_opts:{:?}, update_mode:{:?}",
+                self.layered_memtable_opts, self.update_mode,
+            ));
+        }
+
+        None
     }
 
     /// Sanitize options silently.
@@ -686,6 +722,7 @@ impl TryFrom<manifest_pb::TableOptions> for TableOptions {
             Some(v) => v.into(),
             None => LayeredMemtableOptions {
                 mutable_segment_switch_threshold: ReadableSize(0),
+                enable: false,
             },
         };
 
@@ -791,10 +828,33 @@ fn merge_table_options(
     if let Some(v) = options.get(MEMTABLE_TYPE) {
         base_table_opts.memtable_type = MemtableType::parse_from(v);
     }
+    if let Some(v) = options.get(LAYERED_ENABLE) {
+        let enable = match v.parse::<bool>() {
+            Ok(v) => v,
+            Err(e) => {
+                return ParseLayeredMemtableOptions {
+                    msg: format!("invalid layered_enable setting, err:{e}"),
+                }
+                .fail()
+            }
+        };
+        base_table_opts.layered_memtable_opts.enable = enable;
+    }
+    if let Some(v) = options.get(LAYERED_MUTABLE_SWITCH_THRESHOLD) {
+        let threshold = match ReadableSize::from_str(v) {
+            Ok(v) => v,
+            Err(e) => {
+                return ParseLayeredMemtableOptions {
+                    msg: format!("invalid layered_mutable_switch_threshold setting, err:{e}"),
+                }
+                .fail()
+            }
+        };
 
-    let layered_memtable_opts =
-        LayeredMemtableOptions::parse_from(options).context(ParseLayeredMemtableOptions)?;
-    base_table_opts.layered_memtable_opts = layered_memtable_opts;
+        base_table_opts
+            .layered_memtable_opts
+            .mutable_segment_switch_threshold = threshold;
+    }
 
     Ok(base_table_opts)
 }

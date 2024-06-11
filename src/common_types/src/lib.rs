@@ -53,7 +53,8 @@ pub const UPDATE_MODE: &str = "update_mode";
 pub const COMPRESSION: &str = "compression";
 pub const STORAGE_FORMAT: &str = "storage_format";
 pub const MEMTABLE_TYPE: &str = "memtable_type";
-pub const MUTABLE_SEGMENT_SWITCH_THRESHOLD: &str = "mutable_segment_switch_threshold";
+pub const LAYERED_MUTABLE_SWITCH_THRESHOLD: &str = "layered_mutable_switch_threshold";
+pub const LAYERED_ENABLE: &str = "layered_enable";
 
 #[cfg(any(test, feature = "test"))]
 pub mod tests;

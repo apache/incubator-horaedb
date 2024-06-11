@@ -26,6 +26,11 @@ DROP TABLE IF EXISTS `05_create_tables_t6`;
 DROP TABLE IF EXISTS `05_create_tables_t7`;
 DROP TABLE IF EXISTS `05_create_tables_t8`;
 DROP TABLE IF EXISTS `05_create_tables_t9`;
+DROP TABLE IF EXISTS `05_create_tables_t10`;
+DROP TABLE IF EXISTS `05_create_tables_t11`;
+DROP TABLE IF EXISTS `05_timestamp_not_in_primary_key`;
+DROP TABLE IF EXISTS `05_enable_layered_memtable_for_append`;
+DROP TABLE IF EXISTS `05_enable_layered_memtable_for_overwrite`;
 
 -- no TIMESTAMP column
 CREATE TABLE `05_create_tables_t`(c1 int) ENGINE = Analytic;
@@ -106,6 +111,12 @@ drop table `05_create_tables_t11`;
 -- Timestamp not in primary key
 CREATE TABLE `05_timestamp_not_in_primary_key`(c1 int NOT NULL, t timestamp NOT NULL, TIMESTAMP KEY(t), PRIMARY KEY(c1)) ENGINE = Analytic;
 
+-- Valid, try to create append mode table with invalid layered memtable enabling
+CREATE TABLE `05_enable_layered_memtable_for_append`(c1 int NOT NULL, t timestamp NOT NULL, TIMESTAMP KEY(t)) ENGINE = Analytic with (layered_enable='true', layered_mutable_switch_threshold='3MB', update_mode='APPEND');
+
+-- Invalid, try to create overwrite mode table with invalid layered memtable enabling
+CREATE TABLE `05_enable_layered_memtable_for_overwrite`(c1 int NOT NULL, t timestamp NOT NULL, TIMESTAMP KEY(t)) ENGINE = Analytic with (layered_enable='true', layered_mutable_switch_threshold='3MB', update_mode='OVERWRITE');
+
 DROP TABLE IF EXISTS `05_create_tables_t`;
 DROP TABLE IF EXISTS `05_create_tables_t2`;
 DROP TABLE IF EXISTS `05_create_tables_t3`;
@@ -117,4 +128,6 @@ DROP TABLE IF EXISTS `05_create_tables_t8`;
 DROP TABLE IF EXISTS `05_create_tables_t9`;
 DROP TABLE IF EXISTS `05_create_tables_t10`;
 DROP TABLE IF EXISTS `05_create_tables_t11`;
-DROP TABLE IF EXISTS `05_create_tables_t12`;
+DROP TABLE IF EXISTS `05_timestamp_not_in_primary_key`;
+DROP TABLE IF EXISTS `05_enable_layered_memtable_for_append`;
+DROP TABLE IF EXISTS `05_enable_layered_memtable_for_overwrite`;

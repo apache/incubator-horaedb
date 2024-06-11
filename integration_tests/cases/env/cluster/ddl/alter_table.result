@@ -102,7 +102,7 @@ affected_rows: 0
 show create table 05_alter_table_t1;
 
 Table,Create Table,
-String("05_alter_table_t1"),String("CREATE TABLE `05_alter_table_t1` (`tsid` uint64 NOT NULL, `t` timestamp NOT NULL, `a` int, PRIMARY KEY(tsid,t), TIMESTAMP KEY(t)) ENGINE=Analytic WITH(arena_block_size='2097152', compaction_strategy='default', compression='ZSTD', enable_ttl='true', memtable_type='skiplist', num_rows_per_row_group='8192', segment_duration='', storage_format='AUTO', ttl='7d', update_mode='OVERWRITE', write_buffer_size='314572800')"),
+String("05_alter_table_t1"),String("CREATE TABLE `05_alter_table_t1` (`tsid` uint64 NOT NULL, `t` timestamp NOT NULL, `a` int, PRIMARY KEY(tsid,t), TIMESTAMP KEY(t)) ENGINE=Analytic WITH(arena_block_size='2097152', compaction_strategy='default', compression='ZSTD', enable_ttl='true', layered_enable='false', layered_mutable_switch_threshold='3145728', memtable_type='skiplist', num_rows_per_row_group='8192', segment_duration='', storage_format='AUTO', ttl='7d', update_mode='OVERWRITE', write_buffer_size='314572800')"),
 
 
 drop table 05_alter_table_t1;
@@ -120,7 +120,7 @@ affected_rows: 0
 show create table 05_alter_table_t1;
 
 Table,Create Table,
-String("05_alter_table_t1"),String("CREATE TABLE `05_alter_table_t1` (`tsid` uint64 NOT NULL, `t` timestamp NOT NULL, `sid` uint64 NOT NULL, `a` int, PRIMARY KEY(tsid,t), TIMESTAMP KEY(t)) ENGINE=Analytic WITH(arena_block_size='2097152', compaction_strategy='default', compression='ZSTD', enable_ttl='true', memtable_type='skiplist', num_rows_per_row_group='8192', segment_duration='', storage_format='AUTO', ttl='10d', update_mode='OVERWRITE', write_buffer_size='314572800')"),
+String("05_alter_table_t1"),String("CREATE TABLE `05_alter_table_t1` (`tsid` uint64 NOT NULL, `t` timestamp NOT NULL, `sid` uint64 NOT NULL, `a` int, PRIMARY KEY(tsid,t), TIMESTAMP KEY(t)) ENGINE=Analytic WITH(arena_block_size='2097152', compaction_strategy='default', compression='ZSTD', enable_ttl='true', layered_enable='false', layered_mutable_switch_threshold='3145728', memtable_type='skiplist', num_rows_per_row_group='8192', segment_duration='', storage_format='AUTO', ttl='10d', update_mode='OVERWRITE', write_buffer_size='314572800')"),
 
 
 drop table 05_alter_table_t1;

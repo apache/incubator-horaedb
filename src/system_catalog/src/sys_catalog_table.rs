@@ -314,7 +314,7 @@ impl SysCatalogTable {
         );
         // Disable layered memtable for system catalog table.
         options.insert(
-            common_types::MUTABLE_SEGMENT_SWITCH_THRESHOLD.to_string(),
+            common_types::LAYERED_MUTABLE_SWITCH_THRESHOLD.to_string(),
             0.to_string(),
         );
         let params = CreateTableParams {

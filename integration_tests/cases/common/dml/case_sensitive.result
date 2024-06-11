@@ -74,7 +74,7 @@ Failed to execute query, err: Server(ServerError { code: 500, msg: "Failed to cr
 SHOW CREATE TABLE case_SENSITIVE_table1;
 
 Table,Create Table,
-String("case_SENSITIVE_table1"),String("CREATE TABLE `case_SENSITIVE_table1` (`tsid` uint64 NOT NULL, `ts` timestamp NOT NULL, `VALUE1` double, PRIMARY KEY(tsid,ts), TIMESTAMP KEY(ts)) ENGINE=Analytic WITH(arena_block_size='2097152', compaction_strategy='default', compression='ZSTD', enable_ttl='false', memtable_type='skiplist', num_rows_per_row_group='8192', segment_duration='', storage_format='AUTO', ttl='7d', update_mode='OVERWRITE', write_buffer_size='33554432')"),
+String("case_SENSITIVE_table1"),String("CREATE TABLE `case_SENSITIVE_table1` (`tsid` uint64 NOT NULL, `ts` timestamp NOT NULL, `VALUE1` double, PRIMARY KEY(tsid,ts), TIMESTAMP KEY(ts)) ENGINE=Analytic WITH(arena_block_size='2097152', compaction_strategy='default', compression='ZSTD', enable_ttl='false', layered_enable='false', layered_mutable_switch_threshold='3145728', memtable_type='skiplist', num_rows_per_row_group='8192', segment_duration='', storage_format='AUTO', ttl='7d', update_mode='OVERWRITE', write_buffer_size='33554432')"),
 
 
 SHOW CREATE TABLE CASE_SENSITIVE_TABLE1;
@@ -84,7 +84,7 @@ Failed to execute query, err: Server(ServerError { code: 500, msg: "Failed to cr
 SHOW CREATE TABLE `case_SENSITIVE_table1`;
 
 Table,Create Table,
-String("case_SENSITIVE_table1"),String("CREATE TABLE `case_SENSITIVE_table1` (`tsid` uint64 NOT NULL, `ts` timestamp NOT NULL, `VALUE1` double, PRIMARY KEY(tsid,ts), TIMESTAMP KEY(ts)) ENGINE=Analytic WITH(arena_block_size='2097152', compaction_strategy='default', compression='ZSTD', enable_ttl='false', memtable_type='skiplist', num_rows_per_row_group='8192', segment_duration='', storage_format='AUTO', ttl='7d', update_mode='OVERWRITE', write_buffer_size='33554432')"),
+String("case_SENSITIVE_table1"),String("CREATE TABLE `case_SENSITIVE_table1` (`tsid` uint64 NOT NULL, `ts` timestamp NOT NULL, `VALUE1` double, PRIMARY KEY(tsid,ts), TIMESTAMP KEY(ts)) ENGINE=Analytic WITH(arena_block_size='2097152', compaction_strategy='default', compression='ZSTD', enable_ttl='false', layered_enable='false', layered_mutable_switch_threshold='3145728', memtable_type='skiplist', num_rows_per_row_group='8192', segment_duration='', storage_format='AUTO', ttl='7d', update_mode='OVERWRITE', write_buffer_size='33554432')"),
 
 
 SHOW CREATE TABLE `CASE_SENSITIVE_TABLE1`;
