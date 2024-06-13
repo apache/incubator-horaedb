@@ -25,6 +25,7 @@ use object_store::{
     aliyun,
     config::{ObjectStoreOptions, StorageOptions},
     disk_cache::DiskCacheStore,
+    in_memory_multipart,
     mem_cache::{MemCache, MemCacheStore},
     metrics::StoreWithMetrics,
     obkv,
@@ -211,8 +212,13 @@ fn open_storage(
             ObjectStoreOptions::Aliyun(aliyun_opts) => {
                 let oss: ObjectStoreRef =
                     Arc::new(aliyun::try_new(&aliyun_opts).context(OpenObjectStore)?);
-                let store_with_prefix = StoreWithPrefix::new(aliyun_opts.prefix, oss);
-                Arc::new(store_with_prefix.context(OpenObjectStore)?) as _
+                let store_with_in_memory_multipart = Arc::new(
+                    in_memory_multipart::StoreInMemory::new(aliyun_opts.enable_multipart, oss),
+                );
+                let store_with_prefix =
+                    StoreWithPrefix::new(aliyun_opts.prefix, store_with_in_memory_multipart)
+                        .context(OpenObjectStore)?;
+                Arc::new(store_with_prefix) as _
             }
             ObjectStoreOptions::Obkv(obkv_opts) => {
                 let obkv_config = obkv_opts.client;

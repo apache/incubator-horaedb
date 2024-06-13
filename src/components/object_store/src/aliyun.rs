@@ -62,6 +62,7 @@ pub fn try_new(aliyun_opts: &AliyunOptions) -> upstream::Result<AmazonS3> {
         .with_endpoint(endpoint)
         .with_bucket_name(bucket)
         .with_client_options(cli_opt)
+        .with_proxy_url(&aliyun_opts.proxy)
         .with_retry(retry_config)
         .build()
 }

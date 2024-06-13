@@ -27,7 +27,7 @@ use common_types::{
 use datafusion::parquet::basic::Compression;
 use futures::StreamExt;
 use generic_error::BoxError;
-use logger::{debug, error};
+use logger::{debug, error, info};
 use object_store::{ObjectStoreRef, Path};
 use parquet::data_type::AsBytes;
 use snafu::{OptionExt, ResultExt};
@@ -508,6 +508,7 @@ impl<'a> SstWriter for ParquetSstWriter<'a> {
 
         let (meta_aborter, meta_sink) =
             ObjectStoreMultiUploadAborter::initialize_upload(self.store, &meta_path).await?;
+        info!("meta data begin write");
         let meta_size = match write_metadata(meta_sink, parquet_metadata, &meta_path).await {
             Ok(v) => v,
             Err(e) => {
@@ -516,6 +517,7 @@ impl<'a> SstWriter for ParquetSstWriter<'a> {
                 return Err(e);
             }
         };
+        info!("meta data finish write");
 
         data_encoder
             .set_meta_data_size(meta_size)
@@ -619,7 +621,6 @@ impl<'a> ColumnEncodingSampler<'a> {
 
 #[cfg(test)]
 mod tests {
-
     use std::{sync::Arc, task::Poll};
 
     use bytes_ext::Bytes;

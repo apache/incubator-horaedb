@@ -77,12 +77,14 @@ pub struct AliyunOptions {
     pub key_id: String,
     pub key_secret: String,
     pub endpoint: String,
+    pub proxy: String,
     pub bucket: String,
     pub prefix: String,
     #[serde(default)]
     pub http: HttpOptions,
     #[serde(default)]
     pub retry: RetryOptions,
+    pub enable_multipart: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

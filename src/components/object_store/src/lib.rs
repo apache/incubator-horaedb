@@ -27,6 +27,7 @@ pub use upstream::{
 pub mod aliyun;
 pub mod config;
 pub mod disk_cache;
+pub mod in_memory_multipart;
 pub mod mem_cache;
 pub mod metrics;
 pub mod multipart;
