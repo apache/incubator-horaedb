@@ -80,12 +80,13 @@ use crate::{
     partition::PartitionParser,
     plan::{
         AlterTableOperation, AlterTablePlan, CreateTablePlan, DescribeTablePlan, DropTablePlan,
-        ExistsTablePlan, InsertPlan, Plan, QueryPlan, QueryType, ShowCreatePlan, ShowPlan,
-        ShowTablesPlan,
+        ExistsTablePlan, InsertPlan, InsertSource, Plan, QueryPlan, QueryType, ShowCreatePlan,
+        ShowPlan, ShowTablesPlan,
     },
     promql::{remote_query_to_plan, ColumnNames, Expr as PromExpr, RemoteQueryPlan},
     provider::{ContextProviderAdapter, MetaProvider},
 };
+
 // We do not carry backtrace in sql error because it is mainly used in server
 // handler and the error is usually caused by invalid/unsupported sql, which
 // should be easy to find out the reason.
@@ -996,11 +997,16 @@ impl<'a, P: MetaProvider> PlannerDelegate<'a, P> {
                     }
                 }
 
-                let rows = build_row_group(schema, source, column_index_in_insert)?;
+                let source = build_insert_source(
+                    schema,
+                    source,
+                    column_index_in_insert,
+                    self.meta_provider.clone_with_cleared_cache(),
+                )?;
 
                 Ok(Plan::Insert(InsertPlan {
                     table,
-                    rows,
+                    source,
                     default_value_map,
                 }))
             }
@@ -1105,7 +1111,7 @@ fn normalize_func_name(sql_stmt: &mut SqlStatement) {
 }
 
 #[derive(Debug)]
-enum InsertMode {
+pub enum InsertMode {
     // Insert the value in expr with given index directly.
     Direct(usize),
     // No value provided, insert a null.
@@ -1154,14 +1160,15 @@ fn parse_data_value_from_expr(data_type: DatumKind, expr: &mut Expr) -> Result<D
     }
 }
 
-/// Build RowGroup
-fn build_row_group(
+/// Build InsertSource
+fn build_insert_source<P: MetaProvider>(
     schema: Schema,
     source: Box<Query>,
     column_index_in_insert: Vec<InsertMode>,
-) -> Result<RowGroup> {
+    meta_provider: ContextProviderAdapter<P>,
+) -> Result<InsertSource> {
     // Build row group by schema
-    match *source.body {
+    match *source.clone().body {
         SetExpr::Values(Values {
             explicit_row: _,
             rows: expr_rows,
@@ -1207,7 +1214,33 @@ fn build_row_group(
             }
 
             // Build the whole row group
-            Ok(RowGroup::new_unchecked(schema, rows))
+            Ok(InsertSource::Values {
+                row_group: RowGroup::new_unchecked(schema, rows),
+            })
+        }
+        SetExpr::Select(_) => {
+            let mut select_stmt = SqlStatement::Query(source);
+            normalize_func_name(&mut select_stmt);
+            let select_table_name = parse_table_name_with_standard(&select_stmt);
+
+            let df_planner = SqlToRel::new_with_options(&meta_provider, DEFAULT_PARSER_OPTS);
+
+            let select_df_plan = df_planner
+                .sql_statement_to_plan(select_stmt)
+                .context(DatafusionPlan)?;
+            let select_df_plan = optimize_plan(&select_df_plan).context(DatafusionPlan)?;
+
+            // Get all tables needed in the plan
+            let tables = meta_provider.try_into_container().context(FindMeta)?;
+            let query = QueryPlan {
+                df_plan: select_df_plan,
+                table_name: select_table_name,
+                tables: Arc::new(tables),
+            };
+            Ok(InsertSource::Select {
+                query,
+                column_index_in_insert,
+            })
         }
         _ => InsertSourceBodyNotSet.fail(),
     }
@@ -1409,7 +1442,6 @@ pub fn get_table_ref(table_name: &str) -> TableReference {
 
 #[cfg(test)]
 pub mod tests {
-
     use datafusion::{
         common::tree_node::{TreeNode, TreeNodeVisitor, VisitRecursion},
         datasource::source_as_provider,
@@ -1809,114 +1841,116 @@ pub mod tests {
                 ],
             },
         },
-        rows: RowGroup {
-            schema: Schema {
-                timestamp_index: 1,
-                tsid_index: None,
-                column_schemas: ColumnSchemas {
-                    columns: [
-                        ColumnSchema {
-                            id: 1,
-                            name: "key1",
-                            data_type: Varbinary,
-                            is_nullable: false,
-                            is_tag: false,
-                            is_dictionary: false,
-                            comment: "",
-                            escaped_name: "key1",
-                            default_value: None,
-                        },
-                        ColumnSchema {
-                            id: 2,
-                            name: "key2",
-                            data_type: Timestamp,
-                            is_nullable: false,
-                            is_tag: false,
-                            is_dictionary: false,
-                            comment: "",
-                            escaped_name: "key2",
-                            default_value: None,
-                        },
-                        ColumnSchema {
-                            id: 3,
-                            name: "field1",
-                            data_type: Double,
-                            is_nullable: true,
-                            is_tag: false,
-                            is_dictionary: false,
-                            comment: "",
-                            escaped_name: "field1",
-                            default_value: None,
-                        },
-                        ColumnSchema {
-                            id: 4,
-                            name: "field2",
-                            data_type: String,
-                            is_nullable: true,
-                            is_tag: false,
-                            is_dictionary: false,
-                            comment: "",
-                            escaped_name: "field2",
-                            default_value: None,
-                        },
-                        ColumnSchema {
-                            id: 5,
-                            name: "field3",
-                            data_type: Date,
-                            is_nullable: true,
-                            is_tag: false,
-                            is_dictionary: false,
-                            comment: "",
-                            escaped_name: "field3",
-                            default_value: None,
-                        },
-                        ColumnSchema {
-                            id: 6,
-                            name: "field4",
-                            data_type: Time,
-                            is_nullable: true,
-                            is_tag: false,
-                            is_dictionary: false,
-                            comment: "",
-                            escaped_name: "field4",
-                            default_value: None,
-                        },
+        source: Values {
+            row_group: RowGroup {
+                schema: Schema {
+                    timestamp_index: 1,
+                    tsid_index: None,
+                    column_schemas: ColumnSchemas {
+                        columns: [
+                            ColumnSchema {
+                                id: 1,
+                                name: "key1",
+                                data_type: Varbinary,
+                                is_nullable: false,
+                                is_tag: false,
+                                is_dictionary: false,
+                                comment: "",
+                                escaped_name: "key1",
+                                default_value: None,
+                            },
+                            ColumnSchema {
+                                id: 2,
+                                name: "key2",
+                                data_type: Timestamp,
+                                is_nullable: false,
+                                is_tag: false,
+                                is_dictionary: false,
+                                comment: "",
+                                escaped_name: "key2",
+                                default_value: None,
+                            },
+                            ColumnSchema {
+                                id: 3,
+                                name: "field1",
+                                data_type: Double,
+                                is_nullable: true,
+                                is_tag: false,
+                                is_dictionary: false,
+                                comment: "",
+                                escaped_name: "field1",
+                                default_value: None,
+                            },
+                            ColumnSchema {
+                                id: 4,
+                                name: "field2",
+                                data_type: String,
+                                is_nullable: true,
+                                is_tag: false,
+                                is_dictionary: false,
+                                comment: "",
+                                escaped_name: "field2",
+                                default_value: None,
+                            },
+                            ColumnSchema {
+                                id: 5,
+                                name: "field3",
+                                data_type: Date,
+                                is_nullable: true,
+                                is_tag: false,
+                                is_dictionary: false,
+                                comment: "",
+                                escaped_name: "field3",
+                                default_value: None,
+                            },
+                            ColumnSchema {
+                                id: 6,
+                                name: "field4",
+                                data_type: Time,
+                                is_nullable: true,
+                                is_tag: false,
+                                is_dictionary: false,
+                                comment: "",
+                                escaped_name: "field4",
+                                default_value: None,
+                            },
+                        ],
+                    },
+                    version: 1,
+                    primary_key_indexes: [
+                        0,
+                        1,
                     ],
                 },
-                version: 1,
-                primary_key_indexes: [
-                    0,
-                    1,
+                rows: [
+                    Row {
+                        cols: [
+                            Varbinary(
+                                b"tagk",
+                            ),
+                            Timestamp(
+                                Timestamp(
+                                    1638428434000,
+                                ),
+                            ),
+                            Double(
+                                100.0,
+                            ),
+                            String(
+                                StringBytes(
+                                    b"hello3",
+                                ),
+                            ),
+                            Date(
+                                19275,
+                            ),
+                            Time(
+                                43200456000000,
+                            ),
+                        ],
+                    },
                 ],
             },
-            rows: [
-                Row {
-                    cols: [
-                        Varbinary(
-                            b"tagk",
-                        ),
-                        Timestamp(
-                            Timestamp(
-                                1638428434000,
-                            ),
-                        ),
-                        Double(
-                            100.0,
-                        ),
-                        String(
-                            StringBytes(
-                                b"hello3",
-                            ),
-                        ),
-                        Date(
-                            19275,
-                        ),
-                        Time(
-                            43200456000000,
-                        ),
-                    ],
-                },
-            ],
         },
         default_value_map: {},
     },

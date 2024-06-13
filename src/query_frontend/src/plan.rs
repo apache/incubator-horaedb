@@ -39,7 +39,11 @@ use runtime::Priority;
 use snafu::{OptionExt, Snafu};
 use table_engine::{partition::PartitionInfo, table::TableRef};
 
-use crate::{ast::ShowCreateObject, container::TableContainer, planner::get_table_ref};
+use crate::{
+    ast::ShowCreateObject,
+    container::TableContainer,
+    planner::{get_table_ref, InsertMode},
+};
 
 #[derive(Debug, Snafu)]
 pub enum Error {
@@ -305,13 +309,24 @@ pub struct DropTablePlan {
     pub partition_info: Option<PartitionInfo>,
 }
 
+#[derive(Debug)]
+pub enum InsertSource {
+    Values {
+        row_group: RowGroup,
+    },
+    Select {
+        column_index_in_insert: Vec<InsertMode>,
+        query: QueryPlan,
+    },
+}
+
 /// Insert logical plan
 #[derive(Debug)]
 pub struct InsertPlan {
     /// The table to insert
     pub table: TableRef,
     /// RowGroup to insert
-    pub rows: RowGroup,
+    pub source: InsertSource,
     /// Column indexes in schema to its default-value-expr which is used to fill
     /// values
     pub default_value_map: BTreeMap<usize, DfLogicalExpr>,

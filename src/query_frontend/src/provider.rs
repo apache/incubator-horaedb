@@ -264,6 +264,19 @@ impl<'a, P: MetaProvider> ContextProviderAdapter<'a, P> {
         }
     }
 
+    pub fn clone_with_cleared_cache(&self) -> Self {
+        let default_catalog = self.meta_provider.default_catalog_name().to_string();
+        let default_schema = self.meta_provider.default_schema_name().to_string();
+
+        Self {
+            table_cache: RefCell::new(TableContainer::new(default_catalog, default_schema)),
+            err: RefCell::new(None),
+            meta_provider: self.meta_provider,
+            config: self.config.clone(),
+            dyn_config: self.dyn_config,
+        }
+    }
+
     /// Consumes the adapter, returning the tables used during planning if no
     /// error occurs, otherwise returning the error
     pub fn try_into_container(self) -> Result<TableContainer> {

@@ -44,7 +44,7 @@ use interpreters::interpreter::Output;
 use logger::{debug, error, info, warn};
 use query_frontend::{
     frontend::{Context as FrontendContext, Frontend},
-    plan::{AlterTableOperation, AlterTablePlan, InsertPlan, Plan},
+    plan::{AlterTableOperation, AlterTablePlan, InsertPlan, InsertSource, Plan},
     planner::{build_column_schema, try_get_data_type_from_value},
     provider::CatalogMetaProvider,
 };
@@ -861,7 +861,7 @@ fn write_table_request_to_insert_plan(
         })?;
     Ok(InsertPlan {
         table,
-        rows: row_group,
+        source: InsertSource::Values { row_group },
         default_value_map: BTreeMap::new(),
     })
 }

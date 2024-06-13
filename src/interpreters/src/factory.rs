@@ -82,7 +82,9 @@ impl Factory {
                 self.physical_planner,
                 self.query_runtime,
             ),
-            Plan::Insert(p) => InsertInterpreter::create(ctx, p),
+            Plan::Insert(p) => {
+                InsertInterpreter::create(ctx, p, self.query_executor, self.physical_planner)
+            }
             Plan::Create(p) => {
                 CreateInterpreter::create(ctx, p, self.table_engine, self.table_manipulator)
             }
