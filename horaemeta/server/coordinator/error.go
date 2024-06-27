@@ -22,6 +22,6 @@ package coordinator
 import "github.com/apache/incubator-horaedb-meta/pkg/coderr"
 
 var (
-	ErrNodeNumberNotEnough = coderr.NewCodeError(coderr.Internal, "node number not enough")
-	ErrPickNode            = coderr.NewCodeError(coderr.Internal, "no node is picked")
+	ErrNodeNumberNotEnough = coderr.NewCodeErrorDef(coderr.Internal, "node number not enough")
+	ErrPickNode            = coderr.NewCodeErrorDef(coderr.Internal, "no node is picked")
 )

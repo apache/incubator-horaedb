@@ -24,9 +24,9 @@ import (
 )
 
 var (
-	ErrRecvHeartbeat         = coderr.NewCodeError(coderr.Internal, "receive heartbeat")
-	ErrBindHeartbeatStream   = coderr.NewCodeError(coderr.Internal, "bind heartbeat sender")
-	ErrUnbindHeartbeatStream = coderr.NewCodeError(coderr.Internal, "unbind heartbeat sender")
-	ErrForward               = coderr.NewCodeError(coderr.Internal, "grpc forward")
-	ErrFlowLimit             = coderr.NewCodeError(coderr.TooManyRequests, "flow limit")
+	ErrRecvHeartbeat         = coderr.NewCodeErrorDef(coderr.Internal, "receive heartbeat")
+	ErrBindHeartbeatStream   = coderr.NewCodeErrorDef(coderr.Internal, "bind heartbeat sender")
+	ErrUnbindHeartbeatStream = coderr.NewCodeErrorDef(coderr.Internal, "unbind heartbeat sender")
+	ErrForward               = coderr.NewCodeErrorDef(coderr.Internal, "grpc forward")
+	ErrFlowLimit             = coderr.NewCodeErrorDef(coderr.TooManyRequests, "flow limit")
 )

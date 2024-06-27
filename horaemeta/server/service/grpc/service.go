@@ -435,7 +435,7 @@ func okResponseHeader() *commonpb.ResponseHeader {
 
 func responseHeader(err error, msg string) *commonpb.ResponseHeader {
 	if err == nil {
-		return &commonpb.ResponseHeader{Code: coderr.Ok, Error: msg}
+		return &commonpb.ResponseHeader{Code: uint32(coderr.Ok.ToInt()), Error: msg}
 	}
 
 	code, ok := coderr.GetCauseCode(err)
@@ -443,7 +443,7 @@ func responseHeader(err error, msg string) *commonpb.ResponseHeader {
 		return &commonpb.ResponseHeader{Code: uint32(code), Error: msg}
 	}
 
-	return &commonpb.ResponseHeader{Code: coderr.Internal, Error: msg}
+	return &commonpb.ResponseHeader{Code: uint32(coderr.Internal.ToInt()), Error: msg}
 }
 
 func (s *Service) allow() (bool, error) {
@@ -452,7 +452,7 @@ func (s *Service) allow() (bool, error) {
 		return false, errors.WithMessage(err, "get flow limiter failed")
 	}
 	if !flowLimiter.Allow() {
-		return false, ErrFlowLimit.WithCausef("the current flow has reached the threshold")
+		return false, ErrFlowLimit.WithMessagef("the current flow has reached the threshold")
 	}
 	return true, nil
 }

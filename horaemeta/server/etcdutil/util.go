@@ -34,9 +34,9 @@ func Get(ctx context.Context, client *clientv3.Client, key string) (string, erro
 		return "", ErrEtcdKVGet.WithCause(err)
 	}
 	if n := len(resp.Kvs); n == 0 {
-		return "", ErrEtcdKVGetNotFound
+		return "", ErrEtcdKVGetNotFound.WithMessagef("empty key values")
 	} else if n > 1 {
-		return "", ErrEtcdKVGetResponse.WithCausef("%v", resp.Kvs)
+		return "", ErrEtcdKVGetResponse.WithMessagef("%v", resp.Kvs)
 	}
 
 	return string(resp.Kvs[0].Value), nil

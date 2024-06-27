@@ -24,6 +24,7 @@ import (
 	"sync"
 
 	"github.com/apache/incubator-horaedb-meta/pkg/assert"
+	"github.com/apache/incubator-horaedb-meta/pkg/coderr"
 	"github.com/apache/incubator-horaedb-meta/pkg/log"
 	"github.com/apache/incubator-horaedb-meta/server/cluster/metadata"
 	"github.com/apache/incubator-horaedb-meta/server/coordinator/eventdispatch"
@@ -32,7 +33,6 @@ import (
 	"github.com/apache/incubator-horaedb-meta/server/storage"
 	"github.com/apache/incubator-horaedb-proto/golang/pkg/metaservicepb"
 	"github.com/looplab/fsm"
-	"github.com/pkg/errors"
 	"go.uber.org/zap"
 )
 
@@ -67,7 +67,7 @@ var (
 func checkTableExists(event *fsm.Event) {
 	req, err := procedure.GetRequestFromEvent[*callbackRequest](event)
 	if err != nil {
-		procedure.CancelEventWithLog(event, err, "get request from event")
+		procedure.CancelEventWithLog(event, coderr.Wrapf(err, "get request from event"))
 		return
 	}
 	params := req.p.params
@@ -75,7 +75,7 @@ func checkTableExists(event *fsm.Event) {
 	// Check whether the table metadata already exists.
 	table, exists, err := params.ClusterMetadata.GetTable(params.SourceReq.GetSchemaName(), params.SourceReq.GetName())
 	if err != nil {
-		procedure.CancelEventWithLog(event, err, "get table metadata")
+		procedure.CancelEventWithLog(event, coderr.Wrapf(err, "get table metadata"))
 		return
 	}
 	if !exists {
@@ -85,7 +85,7 @@ func checkTableExists(event *fsm.Event) {
 	// Check whether the table shard mapping already exists.
 	_, exists = params.ClusterMetadata.GetTableShard(req.ctx, table)
 	if exists {
-		procedure.CancelEventWithLog(event, metadata.ErrTableAlreadyExists, "table shard already exists")
+		procedure.CancelEventWithLog(event, metadata.ErrTableAlreadyExists.WithMessagef("table shard already exists"))
 		return
 	}
 }
@@ -93,14 +93,14 @@ func checkTableExists(event *fsm.Event) {
 func createMetadata(event *fsm.Event) {
 	req, err := procedure.GetRequestFromEvent[*callbackRequest](event)
 	if err != nil {
-		procedure.CancelEventWithLog(event, err, "get request from event")
+		procedure.CancelEventWithLog(event, coderr.Wrapf(err, "get request from event"))
 		return
 	}
 	params := req.p.params
 
 	_, exists, err := params.ClusterMetadata.GetTable(params.SourceReq.GetSchemaName(), params.SourceReq.GetName())
 	if err != nil {
-		procedure.CancelEventWithLog(event, err, "get table metadata")
+		procedure.CancelEventWithLog(event, coderr.Wrapf(err, "get table metadata"))
 		return
 	}
 	if exists {
@@ -115,7 +115,7 @@ func createMetadata(event *fsm.Event) {
 	}
 	_, err = params.ClusterMetadata.CreateTableMetadata(req.ctx, createTableMetadataRequest)
 	if err != nil {
-		procedure.CancelEventWithLog(event, err, "create table metadata")
+		procedure.CancelEventWithLog(event, coderr.Wrapf(err, "create table metadata"))
 		return
 	}
 
@@ -125,18 +125,18 @@ func createMetadata(event *fsm.Event) {
 func createOnShard(event *fsm.Event) {
 	req, err := procedure.GetRequestFromEvent[*callbackRequest](event)
 	if err != nil {
-		procedure.CancelEventWithLog(event, err, "get request from event")
+		procedure.CancelEventWithLog(event, coderr.Wrapf(err, "get request from event"))
 		return
 	}
-	params := req.p.params
 
+	params := req.p.params
 	table, ok, err := params.ClusterMetadata.GetTable(params.SourceReq.GetSchemaName(), params.SourceReq.GetName())
 	if err != nil {
-		procedure.CancelEventWithLog(event, err, "get table metadata failed", zap.String("schemaName", params.SourceReq.GetSchemaName()), zap.String("tableName", params.SourceReq.GetName()))
+		procedure.CancelEventWithLog(event, coderr.Wrapf(err, "get table metadata failed, schema:%s, table:%s", params.SourceReq.GetSchemaName(), params.SourceReq.GetName()))
 		return
 	}
 	if !ok {
-		procedure.CancelEventWithLog(event, err, "table metadata not found", zap.String("schemaName", params.SourceReq.GetSchemaName()), zap.String("tableName", params.SourceReq.GetName()))
+		procedure.CancelEventWithLog(event, metadata.ErrTableMetadataNotFound.WithMessagef("table metadata not found, schema:%s, table:5s", params.SourceReq.GetSchemaName(), params.SourceReq.GetName()))
 		return
 	}
 
@@ -148,7 +148,7 @@ func createOnShard(event *fsm.Event) {
 	createTableRequest := ddl.BuildCreateTableRequest(table, shardVersionUpdate, params.SourceReq)
 	latestShardVersion, err := ddl.CreateTableOnShard(req.ctx, params.ClusterMetadata, params.Dispatch, params.ShardID, createTableRequest)
 	if err != nil {
-		procedure.CancelEventWithLog(event, err, "dispatch create table on shard")
+		procedure.CancelEventWithLog(event, coderr.Wrapf(err, "dispatch create table on shard"))
 		return
 	}
 
@@ -161,7 +161,7 @@ func createOnShard(event *fsm.Event) {
 
 	err = params.ClusterMetadata.AddTableTopology(req.ctx, shardVersionUpdate, table)
 	if err != nil {
-		procedure.CancelEventWithLog(event, err, "add table topology")
+		procedure.CancelEventWithLog(event, coderr.Wrapf(err, "add table topology"))
 		return
 	}
 
@@ -176,7 +176,7 @@ func createOnShard(event *fsm.Event) {
 func createFinish(event *fsm.Event) {
 	req, err := procedure.GetRequestFromEvent[*callbackRequest](event)
 	if err != nil {
-		procedure.CancelEventWithLog(event, err, "get request from event")
+		procedure.CancelEventWithLog(event, coderr.Wrapf(err, "get request from event"))
 		return
 	}
 	params := req.p.params
@@ -248,15 +248,19 @@ func (p *Procedure) RelatedVersionInfo() procedure.RelatedVersionInfo {
 func buildRelatedVersionInfo(params ProcedureParams) (procedure.RelatedVersionInfo, error) {
 	shardWithVersion := make(map[storage.ShardID]uint64, 1)
 	shardView, exists := params.ClusterSnapshot.Topology.ShardViewsMapping[params.ShardID]
+
+	var info procedure.RelatedVersionInfo
 	if !exists {
-		return procedure.RelatedVersionInfo{}, errors.WithMessagef(metadata.ErrShardNotFound, "shard not found in topology, shardID:%d", params.ShardID)
+		return info, metadata.ErrShardNotFound.WithMessagef("build related version info, shardID:%d", params.ShardID)
 	}
+
 	shardWithVersion[params.ShardID] = shardView.Version
-	return procedure.RelatedVersionInfo{
+	info = procedure.RelatedVersionInfo{
 		ClusterID:        params.ClusterSnapshot.Topology.ClusterView.ClusterID,
 		ShardWithVersion: shardWithVersion,
 		ClusterVersion:   params.ClusterSnapshot.Topology.ClusterView.Version,
-	}, nil
+	}
+	return info, nil
 }
 
 func (p *Procedure) Priority() procedure.Priority {

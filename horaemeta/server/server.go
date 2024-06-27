@@ -173,7 +173,7 @@ func (srv *Server) startEmbedEtcd(ctx context.Context) error {
 	select {
 	case <-etcdSrv.Server.ReadyNotify():
 	case <-newCtx.Done():
-		return ErrStartEtcdTimeout.WithCausef("timeout is:%v", srv.cfg.EtcdStartTimeout())
+		return ErrStartEtcdTimeout.WithMessagef("timeout is:%v", srv.cfg.EtcdStartTimeout())
 	}
 	srv.etcdSrv = etcdSrv
 
@@ -244,7 +244,7 @@ func (srv *Server) startGrpcServer(_ context.Context) error {
 // startServer starts involved services.
 func (srv *Server) startServer(_ context.Context) error {
 	if srv.cfg.MaxScanLimit <= 1 {
-		return ErrStartServer.WithCausef("scan limit must be greater than 1")
+		return ErrStartServer.WithMessagef("scan limit must be greater than 1")
 	}
 
 	storage := storage.NewStorageWithEtcdBackend(srv.etcdCli, srv.cfg.StorageRootPath,
@@ -377,7 +377,7 @@ func (ctx *leaderWatchContext) EtcdLeaderID() (uint64, error) {
 	if ctx.srv.etcdSrv != nil {
 		return ctx.srv.etcdSrv.Server.Lead(), nil
 	}
-	return 0, errors.WithMessage(member.ErrGetLeader, "no leader found")
+	return 0, member.ErrGetLeader.WithMessagef("etcd server is not set")
 }
 
 func (srv *Server) GetClusterManager() cluster.Manager {
@@ -391,7 +391,7 @@ func (srv *Server) GetLeader(ctx context.Context) (member.GetLeaderAddrResp, err
 
 func (srv *Server) GetFlowLimiter() (*limiter.FlowLimiter, error) {
 	if srv.flowLimiter == nil {
-		return nil, ErrFlowLimiterNotFound
+		return nil, ErrFlowLimiterNotFound.WithMessagef("")
 	}
 	return srv.flowLimiter, nil
 }

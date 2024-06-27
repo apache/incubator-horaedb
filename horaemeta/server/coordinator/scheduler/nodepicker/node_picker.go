@@ -95,7 +95,7 @@ func filterExpiredNodes(nodes []metadata.RegisteredNode) map[string]metadata.Reg
 func (p *ConsistentUniformHashNodePicker) PickNode(_ context.Context, config Config, shardIDs []storage.ShardID, registerNodes []metadata.RegisteredNode) (map[storage.ShardID]metadata.RegisteredNode, error) {
 	aliveNodes := filterExpiredNodes(registerNodes)
 	if len(aliveNodes) == 0 {
-		return nil, ErrNoAliveNodes.WithCausef("registerNodes:%+v", registerNodes)
+		return nil, ErrNoAliveNodes.WithMessagef("registerNodes:%+v", registerNodes)
 	}
 
 	mems := make([]hash.Member, 0, len(aliveNodes))

@@ -22,16 +22,16 @@ package storage
 import "github.com/apache/incubator-horaedb-meta/pkg/coderr"
 
 var (
-	ErrEncode = coderr.NewCodeError(coderr.Internal, "storage encode")
-	ErrDecode = coderr.NewCodeError(coderr.Internal, "storage decode")
+	ErrEncode = coderr.NewCodeErrorDef(coderr.Internal, "storage encode")
+	ErrDecode = coderr.NewCodeErrorDef(coderr.Internal, "storage decode")
 
-	ErrCreateSchemaAgain         = coderr.NewCodeError(coderr.Internal, "storage create schemas")
-	ErrCreateClusterAgain        = coderr.NewCodeError(coderr.Internal, "storage create cluster")
-	ErrUpdateCluster             = coderr.NewCodeError(coderr.Internal, "storage update cluster")
-	ErrCreateClusterViewAgain    = coderr.NewCodeError(coderr.Internal, "storage create cluster view")
-	ErrUpdateClusterViewConflict = coderr.NewCodeError(coderr.Internal, "storage update cluster view")
-	ErrCreateTableAgain          = coderr.NewCodeError(coderr.Internal, "storage create tables")
-	ErrDeleteTableAgain          = coderr.NewCodeError(coderr.Internal, "storage delete table")
-	ErrCreateShardViewAgain      = coderr.NewCodeError(coderr.Internal, "storage create shard view")
-	ErrUpdateShardViewConflict   = coderr.NewCodeError(coderr.Internal, "storage update shard view")
+	ErrCreateSchemaAgain         = coderr.NewCodeErrorDef(coderr.Internal, "storage create schemas")
+	ErrCreateClusterAgain        = coderr.NewCodeErrorDef(coderr.Internal, "storage create cluster")
+	ErrUpdateCluster             = coderr.NewCodeErrorDef(coderr.Internal, "storage update cluster")
+	ErrCreateClusterViewAgain    = coderr.NewCodeErrorDef(coderr.Internal, "storage create cluster view")
+	ErrUpdateClusterViewConflict = coderr.NewCodeErrorDef(coderr.Internal, "storage update cluster view")
+	ErrCreateTableAgain          = coderr.NewCodeErrorDef(coderr.Internal, "storage create tables")
+	ErrDeleteTableAgain          = coderr.NewCodeErrorDef(coderr.Internal, "storage delete table")
+	ErrCreateShardViewAgain      = coderr.NewCodeErrorDef(coderr.Internal, "storage create shard view")
+	ErrUpdateShardViewConflict   = coderr.NewCodeErrorDef(coderr.Internal, "storage update shard view")
 )

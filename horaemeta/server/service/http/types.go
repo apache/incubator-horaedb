@@ -40,29 +40,27 @@ const (
 type response struct {
 	Status string      `json:"status"`
 	Data   interface{} `json:"data,omitempty"`
-	Error  string      `json:"error,omitempty"`
-	Msg    string      `json:"msg,omitempty"`
+	// FIXME: the Error and Msg field seems weird, remove the Msg field
+	Error string `json:"error,omitempty"`
+	Msg   string `json:"msg,omitempty"`
 }
 
 type apiFuncResult struct {
-	data   interface{}
-	err    coderr.CodeError
-	errMsg string
+	data interface{}
+	err  coderr.CodeError
 }
 
 func okResult(data interface{}) apiFuncResult {
 	return apiFuncResult{
-		data:   data,
-		err:    nil,
-		errMsg: "",
+		data: data,
+		err:  nil,
 	}
 }
 
-func errResult(err coderr.CodeError, errMsg string) apiFuncResult {
+func errResult(err coderr.CodeError) apiFuncResult {
 	return apiFuncResult{
-		data:   nil,
-		err:    err,
-		errMsg: errMsg,
+		data: nil,
+		err:  err,
 	}
 }
 

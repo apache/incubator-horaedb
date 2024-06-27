@@ -24,19 +24,19 @@ import "net/http"
 type Code int
 
 const (
-	Invalid           Code = -1
-	Ok                     = 0
-	InvalidParams          = http.StatusBadRequest
-	BadRequest             = http.StatusBadRequest
-	NotFound               = http.StatusNotFound
-	TooManyRequests        = http.StatusTooManyRequests
-	Internal               = http.StatusInternalServerError
-	ErrNotImplemented      = http.StatusNotImplemented
+	Invalid           = Code(-1)
+	Ok                = Code(0)
+	InvalidParams     = Code(http.StatusBadRequest)
+	BadRequest        = Code(http.StatusBadRequest)
+	NotFound          = Code(http.StatusNotFound)
+	TooManyRequests   = Code(http.StatusTooManyRequests)
+	Internal          = Code(http.StatusInternalServerError)
+	ErrNotImplemented = Code(http.StatusNotImplemented)
 
 	// HTTPCodeUpperBound is a bound under which any Code should have the same meaning with the http status code.
 	HTTPCodeUpperBound   = Code(1000)
-	PrintHelpUsage       = 1001
-	ClusterAlreadyExists = 1002
+	PrintHelpUsage       = Code(1001)
+	ClusterAlreadyExists = Code(1002)
 )
 
 // ToHTTPCode converts the Code to http code.
@@ -48,5 +48,9 @@ func (c Code) ToHTTPCode() int {
 	}
 
 	// TODO: use switch to convert the code to http code.
+	return int(c)
+}
+
+func (c Code) ToInt() int {
 	return int(c)
 }

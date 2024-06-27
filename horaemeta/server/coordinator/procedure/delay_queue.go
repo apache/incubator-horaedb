@@ -21,11 +21,8 @@ package procedure
 
 import (
 	"container/heap"
-	"fmt"
 	"sync"
 	"time"
-
-	"github.com/pkg/errors"
 )
 
 type procedureScheduleEntry struct {
@@ -110,11 +107,11 @@ func (q *DelayQueue) Push(p Procedure, delay time.Duration) error {
 	defer q.lock.Unlock()
 
 	if q.heapQueue.Len() >= q.maxLen {
-		return errors.WithMessage(ErrQueueFull, fmt.Sprintf("queue max length is %d", q.maxLen))
+		return ErrQueueFull.WithMessagef("queue max length is %d", q.maxLen)
 	}
 
 	if _, exists := q.existingProcs[p.ID()]; exists {
-		return errors.WithMessage(ErrPushDuplicatedProcedure, fmt.Sprintf("procedure has been pushed, %v", p))
+		return ErrPushDuplicatedProcedure.WithMessagef("procedure has been pushed, %v", p)
 	}
 
 	heap.Push(q.heapQueue, &procedureScheduleEntry{

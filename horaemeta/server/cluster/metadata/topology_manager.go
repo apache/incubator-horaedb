@@ -224,7 +224,7 @@ func (m *TopologyManagerImpl) AddTable(ctx context.Context, shardID storage.Shar
 
 	shardView, ok := m.shardTablesMapping[shardID]
 	if !ok {
-		return ErrShardNotFound.WithCausef("shard id:%d", shardID)
+		return ErrShardNotFound.WithMessagef("add table, shardID:%d", shardID)
 	}
 
 	tableIDsToAdd := make([]storage.TableID, 0, len(tables))
@@ -268,7 +268,7 @@ func (m *TopologyManagerImpl) RemoveTable(ctx context.Context, shardID storage.S
 
 	shardView, ok := m.shardTablesMapping[shardID]
 	if !ok {
-		return ErrShardNotFound.WithCausef("shard id:%d", shardID)
+		return ErrShardNotFound.WithMessagef("remove table, shardID:%d", shardID)
 	}
 
 	newTableIDs := make([]storage.TableID, 0, len(shardView.TableIDs))
@@ -386,7 +386,7 @@ func (m *TopologyManagerImpl) GetShardNodesByID(shardID storage.ShardID) ([]stor
 
 	shardNodes, ok := m.shardNodesMapping[shardID]
 	if !ok {
-		return nil, ErrShardNotFound.WithCausef("shard id:%d", shardID)
+		return nil, ErrShardNotFound.WithMessagef("get shard nodes by shardID:%d", shardID)
 	}
 
 	return shardNodes, nil
@@ -573,7 +573,7 @@ func (m *TopologyManagerImpl) UpdateShardVersionWithExpect(ctx context.Context, 
 
 	shardView, ok := m.shardTablesMapping[shardID]
 	if !ok {
-		return ErrShardNotFound.WithCausef("shard id:%d", shardID)
+		return ErrShardNotFound.WithMessagef("update shard version, shardID:%d", shardID)
 	}
 
 	newShardView := storage.NewShardView(shardID, version, shardView.TableIDs)

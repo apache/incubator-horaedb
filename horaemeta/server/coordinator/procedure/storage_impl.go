@@ -27,6 +27,7 @@ import (
 	"path"
 	"strconv"
 
+	"github.com/apache/incubator-horaedb-meta/pkg/coderr"
 	"github.com/apache/incubator-horaedb-meta/pkg/log"
 	"github.com/apache/incubator-horaedb-meta/server/etcdutil"
 	"github.com/pkg/errors"
@@ -142,7 +143,7 @@ func (e EtcdStorageImpl) List(ctx context.Context, procedureType Kind, batchSize
 	do := func(key string, value []byte) error {
 		meta, err := decodeMeta(string(value))
 		if err != nil {
-			return errors.WithMessagef(err, "decode meta failed, key:%s, value:%v", key, value)
+			return coderr.Wrapf(err, "decode meta failed, key:%s, value:%v", key, value)
 		}
 
 		metas = append(metas, meta)

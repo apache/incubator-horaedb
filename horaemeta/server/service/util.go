@@ -30,8 +30,8 @@ import (
 )
 
 var (
-	ErrParseURL = coderr.NewCodeError(coderr.Internal, "parse url")
-	ErrGRPCDial = coderr.NewCodeError(coderr.Internal, "grpc dial")
+	ErrParseURL = coderr.NewCodeErrorDef(coderr.Internal, "parse url")
+	ErrGRPCDial = coderr.NewCodeErrorDef(coderr.Internal, "grpc dial")
 )
 
 // GetClientConn returns a gRPC client connection.

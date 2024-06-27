@@ -21,4 +21,4 @@ package manager
 
 import "github.com/apache/incubator-horaedb-meta/pkg/coderr"
 
-var ErrInvalidTopologyType = coderr.NewCodeError(coderr.InvalidParams, "invalid topology type")
+var ErrInvalidTopologyType = coderr.NewCodeErrorDef(coderr.InvalidParams, "invalid topology type")

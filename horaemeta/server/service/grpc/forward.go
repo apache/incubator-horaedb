@@ -22,6 +22,7 @@ package grpc
 import (
 	"context"
 
+	"github.com/apache/incubator-horaedb-meta/pkg/coderr"
 	"github.com/apache/incubator-horaedb-meta/pkg/log"
 	"github.com/apache/incubator-horaedb-meta/server/service"
 	"github.com/apache/incubator-horaedb-proto/golang/pkg/metaservicepb"
@@ -40,7 +41,7 @@ func (s *Service) getForwardedMetaClient(ctx context.Context) (metaservicepb.Met
 	if forwardedAddr != "" {
 		horaeClient, err := s.getMetaClient(ctx, forwardedAddr)
 		if err != nil {
-			return nil, errors.WithMessagef(err, "get forwarded horaemeta client, addr:%s", forwardedAddr)
+			return nil, coderr.Wrapf(err, "get forwarded horaemeta client, addr:%s", forwardedAddr)
 		}
 		return horaeClient, nil
 	}
@@ -50,7 +51,7 @@ func (s *Service) getForwardedMetaClient(ctx context.Context) (metaservicepb.Met
 func (s *Service) getMetaClient(ctx context.Context, addr string) (metaservicepb.MetaRpcServiceClient, error) {
 	client, err := s.getForwardedGrpcClient(ctx, addr)
 	if err != nil {
-		return nil, errors.WithMessagef(err, "get horaemeta client, addr:%s", addr)
+		return nil, coderr.Wrapf(err, "get horaemeta client, addr:%s", addr)
 	}
 	return metaservicepb.NewMetaRpcServiceClient(client), nil
 }

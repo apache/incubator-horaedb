@@ -33,7 +33,6 @@ import (
 	"github.com/apache/incubator-horaedb-meta/server/coordinator/scheduler"
 	"github.com/apache/incubator-horaedb-meta/server/coordinator/scheduler/nodepicker"
 	"github.com/apache/incubator-horaedb-meta/server/storage"
-	"github.com/pkg/errors"
 )
 
 type schedulerImpl struct {
@@ -55,16 +54,16 @@ func (s schedulerImpl) UpdateEnableSchedule(_ context.Context, _ bool) {
 }
 
 func (s schedulerImpl) AddShardAffinityRule(_ context.Context, _ scheduler.ShardAffinityRule) error {
-	return ErrNotImplemented.WithCausef("static topology scheduler doesn't support shard affinity")
+	return ErrNotImplemented.WithMessagef("static topology scheduler doesn't support shard affinity")
 }
 
 func (s schedulerImpl) RemoveShardAffinityRule(_ context.Context, _ storage.ShardID) error {
-	return ErrNotImplemented.WithCausef("static topology scheduler doesn't support shard affinity")
+	return ErrNotImplemented.WithMessagef("static topology scheduler doesn't support shard affinity")
 }
 
 func (s schedulerImpl) ListShardAffinityRule(_ context.Context) (scheduler.ShardAffinityRule, error) {
 	var emptyRule scheduler.ShardAffinityRule
-	return emptyRule, ErrNotImplemented.WithCausef("static topology scheduler doesn't support shard affinity")
+	return emptyRule, ErrNotImplemented.WithMessagef("static topology scheduler doesn't support shard affinity")
 }
 
 func (s schedulerImpl) Schedule(ctx context.Context, clusterSnapshot metadata.Snapshot) (scheduler.ScheduleResult, error) {
@@ -164,7 +163,8 @@ func findOnlineNodeByName(nodeName string, nodes []metadata.RegisteredNode) (met
 		}
 	}
 
-	return metadata.RegisteredNode{}, errors.WithMessagef(metadata.ErrNodeNotFound, "node:%s not found in topology", nodeName)
+	var node metadata.RegisteredNode
+	return node, metadata.ErrNodeNotFound.WithMessagef("node:%s not found in topology", nodeName)
 }
 
 func containsShard(shardInfos []metadata.ShardInfo, shardID storage.ShardID) bool {

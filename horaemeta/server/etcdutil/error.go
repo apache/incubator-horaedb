@@ -22,7 +22,7 @@ package etcdutil
 import "github.com/apache/incubator-horaedb-meta/pkg/coderr"
 
 var (
-	ErrEtcdKVGet         = coderr.NewCodeError(coderr.Internal, "etcd KV get failed")
-	ErrEtcdKVGetResponse = coderr.NewCodeError(coderr.Internal, "etcd invalid get value response must only one")
-	ErrEtcdKVGetNotFound = coderr.NewCodeError(coderr.Internal, "etcd KV get value not found")
+	ErrEtcdKVGet         = coderr.NewCodeErrorDef(coderr.Internal, "etcd KV get failed")
+	ErrEtcdKVGetResponse = coderr.NewCodeErrorDef(coderr.Internal, "etcd invalid get value response must only one")
+	ErrEtcdKVGetNotFound = coderr.NewCodeErrorDef(coderr.Internal, "etcd KV get value not found")
 )

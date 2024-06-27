@@ -26,7 +26,6 @@ import (
 	"github.com/apache/incubator-horaedb-meta/pkg/assert"
 	"github.com/apache/incubator-horaedb-meta/server/cluster/metadata"
 	"github.com/apache/incubator-horaedb-meta/server/storage"
-	"github.com/pkg/errors"
 )
 
 // ShardPicker is used to pick up the shards suitable for scheduling in the cluster.
@@ -46,7 +45,7 @@ func NewLeastTableShardPicker() ShardPicker {
 
 func (l leastTableShardPicker) PickShards(_ context.Context, snapshot metadata.Snapshot, expectShardNum int) ([]storage.ShardNode, error) {
 	if len(snapshot.Topology.ClusterView.ShardNodes) == 0 {
-		return nil, errors.WithMessage(ErrNodeNumberNotEnough, "no shard is assigned")
+		return nil, ErrNodeNumberNotEnough.WithMessagef("no shard is assigned")
 	}
 
 	shardNodeMapping := make(map[storage.ShardID]storage.ShardNode, len(snapshot.Topology.ShardViewsMapping))

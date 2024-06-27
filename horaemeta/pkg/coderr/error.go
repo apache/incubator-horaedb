@@ -25,82 +25,135 @@ import (
 	"github.com/pkg/errors"
 )
 
-var _ CodeError = &codeError{code: 0, desc: "", cause: nil}
+var _ CodeErrorDef = &codeErrorDef{code: 0, desc: ""}
+var _ CodeError = &codeError{code: 0, msg: "", hasCause: false, causeWithStack: nil}
 
-// CodeError is an error with code.
 type CodeError interface {
 	error
 	Code() Code
-	// WithCausef should generate a new CodeError instance with the provided cause details.
-	WithCausef(format string, a ...any) CodeError
+}
+
+// CodeErrorDef is an error definition, and able to generate a real CodeError
+type CodeErrorDef interface {
+	Code() Code
+	// WithMessagef should generate a new CodeError instance with the provided message.
+	WithMessagef(format string, a ...any) CodeError
 	// WithCause should generate a new CodeError instance with the provided cause details.
 	WithCause(cause error) CodeError
+	// WithCausef should generate a new CodeError instance with the provided cause details and error message.
+	WithCausef(cause error, format string, a ...any) CodeError
 }
 
 // Is checks whether the cause of `err` is the kind of error specified by the `expectCode`.
 // Returns false if the cause of `err` is not CodeError.
 func Is(err error, expectCode Code) bool {
-	code, b := GetCauseCode(err)
-	if b && code == expectCode {
+	code, ok := GetCauseCode(err)
+	if ok && code == expectCode {
 		return true
 	}
 
 	return false
 }
 
-func GetCauseCode(err error) (Code, bool) {
-	if err == nil {
-		return Invalid, false
-	}
-
-	cause := errors.Cause(err)
-	cerr, ok := cause.(CodeError)
-	if !ok {
-		return Invalid, false
-	}
-	return cerr.Code(), true
-}
-
-// NewCodeError creates a base CodeError definition.
-// The provided code should be defined in the code.go in this package.
-func NewCodeError(code Code, desc string) CodeError {
-	return &codeError{
-		code:  code,
-		desc:  desc,
-		cause: nil,
-	}
-}
-
 // codeError is the default implementation of CodeError.
 type codeError struct {
-	code  Code
-	desc  string
-	cause error
+	code           Code
+	msg            string
+	causeWithStack error
+	hasCause       bool
 }
 
 func (e *codeError) Error() string {
-	return fmt.Sprintf("(#%d)%s, cause:%+v", e.code, e.desc, e.cause)
+	if e.hasCause {
+		return fmt.Sprintf("[err_code=%d]%s, cause:%v", e.code, e.msg, e.causeWithStack)
+	} else {
+		return fmt.Sprintf("[err_code=%d]%s", e.code, e.msg)
+	}
 }
 
 func (e *codeError) Code() Code {
 	return e.code
 }
 
-func (e *codeError) WithCausef(format string, a ...any) CodeError {
-	errMsg := fmt.Sprintf(format, a...)
-	causeWithStack := errors.WithStack(errors.New(errMsg))
-	return &codeError{
-		code:  e.code,
-		desc:  e.desc,
-		cause: causeWithStack,
+// NewCodeErrorDef creates an CodeError definition.
+// The provided code should be defined in the code.go in this package.
+func NewCodeErrorDef(code Code, desc string) CodeErrorDef {
+	return &codeErrorDef{
+		code: code,
+		desc: desc,
 	}
 }
 
-func (e *codeError) WithCause(cause error) CodeError {
+// codeErrorDef is the default implementation of CodeErrorDef.
+type codeErrorDef struct {
+	code Code
+	desc string
+}
+
+func (e *codeErrorDef) Code() Code {
+	return e.code
+}
+
+func (e *codeErrorDef) WithMessagef(format string, a ...any) CodeError {
+	errMsg := fmt.Sprintf(format, a...)
+	causeWithStack := errors.WithStack(errors.New(""))
+	return &codeError{
+		code:           e.code,
+		msg:            fmt.Sprintf("%s, %s", e.desc, errMsg),
+		causeWithStack: causeWithStack,
+		hasCause:       false,
+	}
+}
+
+func (e *codeErrorDef) WithCause(cause error) CodeError {
 	causeWithStack := errors.WithStack(cause)
 	return &codeError{
-		code:  e.code,
-		desc:  e.desc,
-		cause: causeWithStack,
+		code:           e.code,
+		msg:            e.desc,
+		causeWithStack: causeWithStack,
+		hasCause:       true,
 	}
+}
+
+func (e *codeErrorDef) WithCausef(cause error, format string, a ...any) CodeError {
+	errMsg := fmt.Sprintf(format, a...)
+	causeWithStack := errors.WithStack(cause)
+	return &codeError{
+		code:           e.code,
+		msg:            fmt.Sprintf("%s, %s", e.desc, errMsg),
+		causeWithStack: causeWithStack,
+		hasCause:       true,
+	}
+}
+
+func Wrapf(err error, format string, args ...interface{}) error {
+	return errors.WithMessagef(err, format, args...)
+}
+
+// FormatErrorWithStack prints the error message with the call stack information if it contains.
+func FormatErrorWithStack(e error) string {
+	cErr, ok := e.(*codeError)
+	if !ok {
+		return e.Error()
+	}
+
+	if cErr.hasCause {
+		return fmt.Sprintf("[err_code=%d]%s, causeWithStack:%+v", cErr.code, cErr.msg, cErr.causeWithStack)
+	} else {
+		return fmt.Sprintf("[err_code=%d]%s, stack:%+v", cErr.code, cErr.msg, cErr.causeWithStack)
+	}
+}
+
+// GetCauseCode extract the error code of the first layer.
+func GetCauseCode(err error) (Code, bool) {
+	if err == nil {
+		return Invalid, false
+	}
+
+	cause := errors.Cause(err)
+	cErr, ok := cause.(CodeError)
+	if !ok {
+		return Invalid, false
+	}
+	return cErr.Code(), true
 }
