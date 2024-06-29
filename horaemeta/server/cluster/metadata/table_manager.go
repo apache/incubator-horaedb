@@ -173,7 +173,6 @@ func (m *TableManagerImpl) CreateTable(ctx context.Context, schemaName string, t
 		SchemaID:  schema.ID,
 		Table:     table,
 	})
-
 	if err != nil {
 		return emptyTable, errors.WithMessage(err, "storage create table")
 	}

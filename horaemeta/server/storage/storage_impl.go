@@ -36,7 +36,6 @@ import (
 )
 
 type Options struct {
-
 	// MaxScanLimit is the max limit of the number of keys in a scan.
 	MaxScanLimit int
 	// MinScanLimit is the min limit of the number of keys in a scan.

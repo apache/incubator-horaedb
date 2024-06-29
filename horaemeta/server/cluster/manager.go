@@ -364,7 +364,6 @@ func (m *managerImpl) RegisterNode(ctx context.Context, clusterName string, regi
 	}
 
 	err = cluster.metadata.RegisterNode(ctx, registeredNode)
-
 	if err != nil {
 		return errors.WithMessage(err, "cluster register node")
 	}
