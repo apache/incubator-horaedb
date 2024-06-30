@@ -59,6 +59,7 @@ members = [
     "src/components/system_stats",
     "src/components/table_kv",
     "src/components/test_util",
+    "src/components/fb_util",
     "src/components/time_ext",
     "src/components/timed_task",
     "src/components/toml_ext",
@@ -182,6 +183,7 @@ table_engine = { path = "src/table_engine" }
 table_kv = { path = "src/components/table_kv" }
 tempfile = "3.1.0"
 test_util = { path = "src/components/test_util" }
+fb_util = { path = "src/components/fb_util" }
 time_ext = { path = "src/components/time_ext" }
 toml = "0.7"
 toml_ext = { path = "src/components/toml_ext" }
@@ -196,6 +198,7 @@ uuid = "1.6.1"
 wal = { path = "src/wal" }
 xorfilter-rs = { git = "https://github.com/CeresDB/xorfilter", rev = "ac8ef01" }
 zstd = { version = "0.12", default-features = false }
+flatbuffers = { version = "24.3.25" }
 
 # This profile optimizes for good runtime performance.
 [profile.release]

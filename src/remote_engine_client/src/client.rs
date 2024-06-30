@@ -29,6 +29,10 @@ use arrow_ext::{
     ipc::{CompressOptions, CompressionMethod},
 };
 use common_types::{record_batch::RecordBatch, schema::RecordSchema};
+use fb_util::{
+    remote_engine_fb_service_client::RemoteEngineFbServiceClient,
+    remote_engine_generated::fbprotocol::WriteResponse,
+};
 use futures::{Stream, StreamExt};
 use generic_error::BoxError;
 use horaedbproto::{
@@ -140,13 +144,14 @@ impl Client {
         // Write to remote.
         let table_ident = request.table.clone();
         let endpoint = route_context.endpoint.clone();
-        let request_pb = request.convert_into_pb().box_err().context(Convert {
-            msg: "Failed to convert WriteRequest to pb",
+        let request_fb = request.convert_into_fb().box_err().context(Convert {
+            msg: "Failed to convert WriteRequest to fb",
         })?;
-        let mut rpc_client = RemoteEngineServiceClient::<Channel>::new(route_context.channel);
+
+        let mut rpc_client = RemoteEngineFbServiceClient::<Channel>::new(route_context.channel);
 
         let result = rpc_client
-            .write(Request::new(request_pb))
+            .write(Request::new(request_fb))
             .await
             .with_context(|| Rpc {
                 table_idents: vec![table_ident.clone()],
@@ -154,19 +159,20 @@ impl Client {
             });
 
         let result = result.and_then(|response| {
-            let response = response.into_inner();
-            if let Some(header) = &response.header
-                && !status_code::is_ok(header.code)
+            let fb_response = response.into_inner();
+            let response = fb_response.deserialize::<WriteResponse>().unwrap();
+            if let Some(header) = &response.header()
+                && !status_code::is_ok(header.code())
             {
                 Server {
                     endpoint,
                     table_idents: vec![table_ident.clone()],
-                    code: header.code,
-                    msg: header.error.clone(),
+                    code: header.code(),
+                    msg: header.error().unwrap().to_string(),
                 }
                 .fail()
             } else {
-                Ok(response.affected_rows as usize)
+                Ok(response.affected_rows() as usize)
             }
         });
 
@@ -183,7 +189,8 @@ impl Client {
         // Find the channels from router firstly.
         let mut write_batch_contexts_by_endpoint = HashMap::new();
         for request in requests {
-            let route_context = self.cached_router.route(&request.table).await?;
+            let route_context: crate::cached_router::RouteContext =
+                self.cached_router.route(&request.table).await?;
             let write_batch_context = write_batch_contexts_by_endpoint
                 .entry(route_context.endpoint)
                 .or_insert(WriteBatchContext {
@@ -205,13 +212,14 @@ impl Client {
                 request,
                 channel,
             } = context;
-            let batch_request_pb = request.convert_into_pb().box_err().context(Convert {
-                msg: "failed to convert request to pb",
+
+            let batch_request_fb = request.convert_into_fb().box_err().context(Convert {
+                msg: "failed to convert request to fb",
             })?;
             let handle = self.io_runtime.spawn(async move {
-                let mut rpc_client = RemoteEngineServiceClient::<Channel>::new(channel);
+                let mut rpc_client = RemoteEngineFbServiceClient::<Channel>::new(channel);
                 rpc_client
-                    .write_batch(Request::new(batch_request_pb))
+                    .write_batch(Request::new(batch_request_fb))
                     .await
                     .map(|v| (v, endpoint.clone()))
                     .box_err()
@@ -238,20 +246,21 @@ impl Client {
             // Check remote write result then.
             let result = batch_result.and_then(|result| {
                 let (response, endpoint) = result;
-                let response = response.into_inner();
-                if let Some(header) = &response.header
-                    && !status_code::is_ok(header.code)
+                let fb_response = response.into_inner();
+                let response = fb_response.deserialize::<WriteResponse>().unwrap();
+                if let Some(header) = response.header()
+                    && !status_code::is_ok(header.code())
                 {
                     Server {
                         endpoint,
                         table_idents: table_idents.clone(),
-                        code: header.code,
-                        msg: header.error.clone(),
+                        code: header.code(),
+                        msg: header.error().unwrap().to_string(),
                     }
                     .fail()
                     .box_err()
                 } else {
-                    Ok(response.affected_rows)
+                    Ok(response.affected_rows())
                 }
             });
 

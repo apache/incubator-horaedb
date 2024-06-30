@@ -52,3 +52,5 @@ serde_json = { workspace = true }
 snafu = { workspace = true }
 sqlparser = { workspace = true }
 uuid = { workspace = true, features = ["fast-rng"] }
+fb_util = { workspace = true }
+flatbuffers = { workspace = true }

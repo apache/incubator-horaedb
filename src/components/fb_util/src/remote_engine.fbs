@@ -1,0 +1,70 @@
+namespace FBProtocol;
+
+enum DataType : ubyte
+{
+    NULL = 0,
+    TIMESTAMP = 1,
+    DOUBLE = 2,
+    VARBINARY = 3,
+    STRING = 4,
+    UINT64 = 5,
+    FLOAT = 6,
+    INT64 = 7,
+    INT32 = 8,
+    INT16 = 9,
+    INT8 = 10,
+    UINT32 = 11,
+    UINT16 = 12,
+    UINT8 = 13,
+    BOOL = 14,
+    DATE = 15,
+    TIME = 16
+}
+
+table TableIdentifier {
+  catalog: string;
+  schema: string;
+  table: string;
+}
+
+table EncodedRow {
+    bytes: [ubyte];
+}
+
+struct ColumnDesc {
+    id: uint;
+    typ: DataType;
+}
+
+table ContiguousRows {
+    schema_version: uint;
+    encoded_rows: [EncodedRow];
+    column_descs: [ColumnDesc];
+}
+
+table RowGroup {
+  min_timestamp: long;
+  max_timestamp: long;
+  contiguous: ContiguousRows;
+}
+
+table WriteRequest {
+  table: TableIdentifier;
+  row_group: RowGroup;
+}
+
+table ResponseHeader {
+  code: uint;
+  error: string;
+}
+
+table WriteResponse {
+  header: ResponseHeader;
+  affected_rows: ulong;
+}
+
+table WriteBatchRequest {
+  batch: [WriteRequest];
+}
+ 
+root_type WriteBatchRequest;

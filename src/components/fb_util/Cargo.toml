@@ -16,7 +16,7 @@
 # under the License.
 
 [package]
-name = "remote_engine_client"
+name = "fb_util"
 
 [package.license]
 workspace = true
@@ -31,20 +31,10 @@ workspace = true
 workspace = true
 
 [dependencies]
-arrow_ext = { workspace = true }
-async-trait = { workspace = true }
-common_types = { workspace = true }
-futures = { workspace = true }
-generic_error = { workspace = true }
-horaedbproto = { workspace = true }
-logger = { workspace = true }
-macros = { workspace = true }
-router = { workspace = true }
-runtime = { workspace = true }
-serde = { workspace = true }
-snafu = { workspace = true }
-table_engine = { workspace = true }
-time_ext = { workspace = true }
-tokio = { workspace = true }
+flatbuffers = { workspace = true }
 tonic = { workspace = true }
-fb_util = { workspace = true }
+bytes = { workspace = true }
+
+[build-dependencies]
+flatc-rust = "*"
+tonic-build = "0.8.1"

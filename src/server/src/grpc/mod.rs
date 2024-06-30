@@ -26,6 +26,7 @@ use std::{
 
 use cluster::ClusterRef;
 use common_types::column_schema;
+use fb_util::remote_engine_fb_service_server::RemoteEngineFbServiceServer;
 use futures::FutureExt;
 use generic_error::GenericError;
 use horaedbproto::{
@@ -165,6 +166,7 @@ pub struct RpcServices {
     rpc_server: InterceptedService<StorageServiceServer<StorageServiceImpl>, AuthWithFile>,
     meta_rpc_server: Option<MetaEventServiceServer<MetaServiceImpl>>,
     remote_engine_server: RemoteEngineServiceServer<RemoteEngineServiceImpl>,
+    remote_engine_server_ext: RemoteEngineFbServiceServer<RemoteEngineServiceImpl>,
     runtime: Arc<Runtime>,
     stop_tx: Option<Sender<()>>,
     join_handle: Option<JoinHandle<()>>,
@@ -175,6 +177,7 @@ impl RpcServices {
         let rpc_server = self.rpc_server.clone();
         let meta_rpc_server = self.meta_rpc_server.clone();
         let remote_engine_server = self.remote_engine_server.clone();
+        let remote_engine_server_ext = self.remote_engine_server_ext.clone();
         let serve_addr = self.serve_addr;
         let (stop_tx, stop_rx) = oneshot::channel();
         let join_handle = self.runtime.spawn(async move {
@@ -189,6 +192,7 @@ impl RpcServices {
 
             info!("Grpc server serves remote engine rpc service");
             router = router.add_service(remote_engine_server);
+            router = router.add_service(remote_engine_server_ext);
 
             router
                 .serve_with_shutdown(serve_addr, stop_rx.map(drop))
@@ -315,25 +319,31 @@ impl Builder {
             MetaEventServiceServer::new(builder.build())
         });
 
-        let remote_engine_server = {
-            let query_dedup = self
-                .query_dedup_config
-                .map(|v| {
-                    v.enable.then(|| QueryDedup {
-                        config: v.clone(),
-                        request_notifiers: Arc::new(RequestNotifiers::default()),
-                        physical_plan_notifiers: Arc::new(RequestNotifiers::default()),
-                    })
+        let query_dedup = self
+            .query_dedup_config
+            .map(|v| {
+                v.enable.then(|| QueryDedup {
+                    config: v.clone(),
+                    request_notifiers: Arc::new(RequestNotifiers::default()),
+                    physical_plan_notifiers: Arc::new(RequestNotifiers::default()),
                 })
-                .unwrap_or_default();
-            let service = RemoteEngineServiceImpl {
-                instance,
-                runtimes: runtimes.clone(),
-                query_dedup,
-                hotspot_recorder,
-            };
-            RemoteEngineServiceServer::new(service)
+            })
+            .unwrap_or_default();
+        let service = RemoteEngineServiceImpl {
+            instance: instance.clone(),
+            runtimes: runtimes.clone(),
+            query_dedup: query_dedup.clone(),
+            hotspot_recorder: hotspot_recorder.clone(),
         };
+        let remote_engine_server = RemoteEngineServiceServer::new(service);
+        let service_ext = RemoteEngineServiceImpl {
+            instance,
+            runtimes: runtimes.clone(),
+            query_dedup,
+            hotspot_recorder,
+        };
+
+        let remote_engine_server_ext = RemoteEngineFbServiceServer::new(service_ext);
 
         let runtime = runtimes.default_runtime.clone();
 
@@ -351,6 +361,7 @@ impl Builder {
             rpc_server,
             meta_rpc_server,
             remote_engine_server,
+            remote_engine_server_ext,
             runtime,
             stop_tx: None,
             join_handle: None,

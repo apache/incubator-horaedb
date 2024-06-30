@@ -492,7 +492,7 @@ dependencies = [
  "arrow-cast 38.0.0",
  "arrow-data 38.0.0",
  "arrow-schema 38.0.0",
- "flatbuffers",
+ "flatbuffers 23.1.21",
 ]
 
 [[package]]
@@ -506,7 +506,7 @@ dependencies = [
  "arrow-cast 49.0.0",
  "arrow-data 49.0.0",
  "arrow-schema 49.0.0",
- "flatbuffers",
+ "flatbuffers 23.1.21",
 ]
 
 [[package]]
@@ -1545,6 +1545,8 @@ dependencies = [
  "bytes_ext",
  "chrono",
  "datafusion",
+ "fb_util",
+ "flatbuffers 24.3.25",
  "hash_ext",
  "horaedbproto 2.0.0",
  "macros",
@@ -2537,6 +2539,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "fb_util"
+version = "2.0.0"
+dependencies = [
+ "bytes",
+ "flatbuffers 24.3.25",
+ "flatc-rust",
+ "tonic 0.8.3",
+ "tonic-build",
+]
+
+[[package]]
 name = "filedescriptor"
 version = "0.8.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2573,6 +2586,25 @@ checksum = "77f5399c2c9c50ae9418e522842ad362f61ee48b346ac106807bd355a8a7c619"
 dependencies = [
  "bitflags 1.3.2",
  "rustc_version",
+]
+
+[[package]]
+name = "flatbuffers"
+version = "24.3.25"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8add37afff2d4ffa83bc748a70b4b1370984f6980768554182424ef71447c35f"
+dependencies = [
+ "bitflags 1.3.2",
+ "rustc_version",
+]
+
+[[package]]
+name = "flatc-rust"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "57e61227926ef5b237af48bee74394cc4a5a221ebd10c5147a98e612f207851d"
+dependencies = [
+ "log",
 ]
 
 [[package]]
@@ -3195,9 +3227,9 @@ checksum = "9a3a5bfb195931eeb336b2a7b4d761daec841b97f947d34394601737a7bba5e4"
 
 [[package]]
 name = "hyper"
-version = "0.14.25"
+version = "0.14.29"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "cc5e554ff619822309ffd57d8734d77cd5ce6238bc956f037ea06c58238c9899"
+checksum = "f361cde2f109281a220d4307746cdfd5ee3f410da58a70377762396775634b33"
 dependencies = [
  "bytes",
  "futures-channel",
@@ -3210,7 +3242,7 @@ dependencies = [
  "httpdate",
  "itoa",
  "pin-project-lite",
- "socket2 0.4.9",
+ "socket2 0.5.3",
  "tokio",
  "tower-service",
  "tracing",
@@ -5850,6 +5882,7 @@ dependencies = [
  "arrow_ext",
  "async-trait",
  "common_types",
+ "fb_util",
  "futures 0.3.28",
  "generic_error",
  "horaedbproto 2.0.0",
@@ -6407,6 +6440,8 @@ dependencies = [
  "datafusion",
  "derive_builder 0.12.0",
  "df_operator",
+ "fb_util",
+ "flatbuffers 24.3.25",
  "flate2",
  "future_ext",
  "futures 0.3.28",
@@ -7013,6 +7048,8 @@ dependencies = [
  "datafusion",
  "datafusion-proto",
  "df_operator",
+ "fb_util",
+ "flatbuffers 24.3.25",
  "futures 0.3.28",
  "generic_error",
  "hash_ext",
@@ -7729,7 +7766,7 @@ version = "1.6.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "97fee6b57c6a41524a810daee9286c02d7752c4253064d0b05472833a438f675"
 dependencies = [
- "cfg-if 0.1.10",
+ "cfg-if 1.0.0",
  "rand 0.8.5",
  "static_assertions",
 ]

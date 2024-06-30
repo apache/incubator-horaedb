@@ -29,6 +29,15 @@ use arrow_ext::ipc::{self, CompressOptions, CompressOutput, CompressionMethod};
 use async_trait::async_trait;
 use catalog::{manager::ManagerRef, schema::SchemaRef};
 use common_types::{record_batch::RecordBatch, request_id::RequestId};
+use fb_util::{
+    common::FlatBufferBytes,
+    remote_engine_fb_service_server::RemoteEngineFbService,
+    remote_engine_generated::fbprotocol::{
+        ContiguousRows as FBContiguousRows, ResponseHeader, ResponseHeaderArgs,
+        WriteBatchRequest as FBWriteBatchRequest, WriteRequest as FBWriteRequest,
+        WriteResponse as FBWriteResponse, WriteResponseArgs as FBWriteResponseArgs,
+    },
+};
 use futures::{
     stream::{self, BoxStream, FuturesUnordered, StreamExt},
     Future,
@@ -63,14 +72,14 @@ use snafu::{OptionExt, ResultExt};
 use table_engine::{
     engine::EngineRuntimes,
     predicate::PredicateRef,
-    remote::model::{self, TableIdentifier},
+    remote::model::{self, ContiguousRowsExt, TableIdentifier},
     stream::{PartitionedStreams, SendableRecordBatchStream},
     table::{AlterSchemaRequest, TableRef},
 };
 use time_ext::InstantExt;
 use tokio::sync::mpsc::{self, Sender};
 use tokio_stream::{wrappers::ReceiverStream, Stream};
-use tonic::{Request, Response, Status};
+use tonic::{Code, Request, Response, Status};
 
 use crate::{
     config::QueryDedupConfig,
@@ -86,12 +95,36 @@ use crate::{
         },
     },
 };
-
 pub mod error;
 mod metrics;
 
 const STREAM_QUERY_CHANNEL_LEN: usize = 200;
 const DEFAULT_COMPRESS_MIN_LENGTH: usize = 80 * 1024;
+
+enum TonicWriteBatchRequestExt {
+    Proto(Request<WriteBatchRequest>),
+    Flatbuffer(tonic::Request<FlatBufferBytes>),
+}
+
+enum TonicWriteRequestExt {
+    Proto(Request<WriteRequest>),
+    Flatbuffer(tonic::Request<FlatBufferBytes>),
+}
+
+enum TonicWriteResponseExt {
+    Proto(tonic::Response<WriteResponse>),
+    Flatbuffer(tonic::Response<FlatBufferBytes>),
+}
+
+enum WriteRequestExt<'a> {
+    Proto(WriteRequest),
+    Flatbuffer(FBWriteRequest<'a>),
+}
+
+enum RowsPayloadExt<'a> {
+    Proto(row_group::Rows),
+    Flatbuffer(FBContiguousRows<'a>),
+}
 
 #[derive(Debug, Clone)]
 pub enum RecordBatchWithMetric {
@@ -571,17 +604,36 @@ impl RemoteEngineServiceImpl {
 
     async fn write_internal(
         &self,
-        request: Request<WriteRequest>,
-    ) -> std::result::Result<Response<WriteResponse>, Status> {
+        request: TonicWriteRequestExt,
+    ) -> std::result::Result<TonicWriteResponseExt, Status> {
         let begin_instant = Instant::now();
         let ctx = self.handler_ctx();
-        let handle = self.runtimes.write_runtime.spawn(async move {
-            let request = request.into_inner();
-            handle_write(ctx, request).await.map_err(|e| {
-                error!("Handle write failed, err:{e}");
-                e
-            })
-        });
+        let (handle, is_flatbuffer) = match request {
+            TonicWriteRequestExt::Proto(v) => (
+                self.runtimes.write_runtime.spawn(async move {
+                    let request = WriteRequestExt::Proto(v.into_inner());
+
+                    handle_write(ctx, request).await.map_err(|e| {
+                        error!("Handle write failed, err:{e}");
+                        e
+                    })
+                }),
+                false,
+            ),
+            TonicWriteRequestExt::Flatbuffer(v) => (
+                self.runtimes.write_runtime.spawn(async move {
+                    let request = v.into_inner();
+                    let request = request.deserialize::<FBWriteRequest>().unwrap();
+                    let request = WriteRequestExt::Flatbuffer(request);
+
+                    handle_write(ctx, request).await.map_err(|e| {
+                        error!("Handle write failed, err:{e}");
+                        e
+                    })
+                }),
+                true,
+            ),
+        };
 
         let res = handle.await.box_err().context(ErrWithCause {
             code: StatusCode::Internal,
@@ -602,7 +654,13 @@ impl RemoteEngineServiceImpl {
         REMOTE_ENGINE_GRPC_HANDLER_DURATION_HISTOGRAM_VEC
             .write
             .observe(begin_instant.saturating_elapsed().as_secs_f64());
-        Ok(Response::new(resp))
+
+        match is_flatbuffer {
+            true => Ok(TonicWriteResponseExt::Flatbuffer(Response::new(
+                build_fb_write_response(resp),
+            ))),
+            false => Ok(TonicWriteResponseExt::Proto(Response::new(resp))),
+        }
     }
 
     async fn get_table_info_internal(
@@ -643,24 +701,53 @@ impl RemoteEngineServiceImpl {
 
     async fn write_batch_internal(
         &self,
-        request: Request<WriteBatchRequest>,
-    ) -> std::result::Result<Response<WriteResponse>, Status> {
+        request: TonicWriteBatchRequestExt,
+    ) -> std::result::Result<TonicWriteResponseExt, Status> {
         let begin_instant = Instant::now();
-        let request = request.into_inner();
-        let mut write_table_handles = Vec::with_capacity(request.batch.len());
-        for one_request in request.batch {
-            let ctx = self.handler_ctx();
-            let handle = self
-                .runtimes
-                .write_runtime
-                .spawn(handle_write(ctx, one_request));
-            write_table_handles.push(handle);
-        }
+
+        let (write_table_handles, is_flatbuffer) = match request {
+            TonicWriteBatchRequestExt::Proto(v) => {
+                let request = v.into_inner();
+                let mut write_table_handles = Vec::with_capacity(request.batch.len());
+                for one_request in request.batch {
+                    let ctx = self.handler_ctx();
+                    let handle = self
+                        .runtimes
+                        .write_runtime
+                        .spawn(handle_write(ctx, WriteRequestExt::Proto(one_request)));
+                    write_table_handles.push(handle);
+                }
+                (write_table_handles, false)
+            }
+            TonicWriteBatchRequestExt::Flatbuffer(v) => {
+                let request = Arc::new(v.into_inner());
+                let req = request.deserialize::<FBWriteBatchRequest>().unwrap();
+                let batch_len = req.batch().unwrap().len();
+                let mut write_table_handles = Vec::with_capacity(batch_len);
+                for i in 0..batch_len {
+                    let r = request.clone();
+                    let ctx = self.handler_ctx();
+                    let handle = self.runtimes.write_runtime.spawn(async move {
+                        let r = r.deserialize::<FBWriteBatchRequest>().unwrap();
+                        let batch = r.batch().unwrap();
+                        handle_write(ctx, WriteRequestExt::Flatbuffer(batch.get(i)))
+                            .await
+                            .map_err(|e| {
+                                error!("Handle write failed, err:{e}");
+                                e
+                            })
+                    });
+                    write_table_handles.push(handle);
+                }
+                (write_table_handles, true)
+            }
+        };
 
         let mut batch_resp = WriteResponse {
             header: Some(error::build_ok_header()),
             affected_rows: 0,
         };
+
         for write_handle in write_table_handles {
             let write_result = write_handle.await.box_err().context(ErrWithCause {
                 code: StatusCode::Internal,
@@ -689,7 +776,12 @@ impl RemoteEngineServiceImpl {
             .write_batch
             .observe(begin_instant.saturating_elapsed().as_secs_f64());
 
-        Ok(Response::new(batch_resp))
+        match is_flatbuffer {
+            true => Ok(TonicWriteResponseExt::Flatbuffer(Response::new(
+                build_fb_write_response(batch_resp),
+            ))),
+            false => Ok(TonicWriteResponseExt::Proto(Response::new(batch_resp))),
+        }
     }
 
     async fn execute_physical_plan_internal(
@@ -921,6 +1013,35 @@ struct HandlerContext {
 }
 
 #[async_trait]
+impl RemoteEngineFbService for RemoteEngineServiceImpl {
+    async fn write(
+        &self,
+        request: tonic::Request<FlatBufferBytes>,
+    ) -> std::result::Result<tonic::Response<FlatBufferBytes>, tonic::Status> {
+        let result = self
+            .write_internal(TonicWriteRequestExt::Flatbuffer(request))
+            .await?;
+        match result {
+            TonicWriteResponseExt::Flatbuffer(v) => Ok(v),
+            TonicWriteResponseExt::Proto(_) => Err(Status::new(Code::Internal, "logic error")),
+        }
+    }
+
+    async fn write_batch(
+        &self,
+        request: tonic::Request<FlatBufferBytes>,
+    ) -> std::result::Result<tonic::Response<FlatBufferBytes>, tonic::Status> {
+        let result = self
+            .write_batch_internal(TonicWriteBatchRequestExt::Flatbuffer(request))
+            .await?;
+        match result {
+            TonicWriteResponseExt::Flatbuffer(v) => Ok(v),
+            TonicWriteResponseExt::Proto(_) => Err(Status::new(Code::Internal, "logic error")),
+        }
+    }
+}
+
+#[async_trait]
 impl RemoteEngineService for RemoteEngineServiceImpl {
     type ExecutePhysicalPlanStream = BoxStream<'static, std::result::Result<ReadResponse, Status>>;
     type ReadStream = BoxStream<'static, std::result::Result<ReadResponse, Status>>;
@@ -951,7 +1072,13 @@ impl RemoteEngineService for RemoteEngineServiceImpl {
         &self,
         request: Request<WriteRequest>,
     ) -> std::result::Result<Response<WriteResponse>, Status> {
-        self.write_internal(request).await
+        let result = self
+            .write_internal(TonicWriteRequestExt::Proto(request))
+            .await?;
+        match result {
+            TonicWriteResponseExt::Proto(v) => Ok(v),
+            TonicWriteResponseExt::Flatbuffer(_) => Err(Status::new(Code::Internal, "logic error")),
+        }
     }
 
     async fn get_table_info(
@@ -965,7 +1092,13 @@ impl RemoteEngineService for RemoteEngineServiceImpl {
         &self,
         request: Request<WriteBatchRequest>,
     ) -> std::result::Result<Response<WriteResponse>, Status> {
-        self.write_batch_internal(request).await
+        let result = self
+            .write_batch_internal(TonicWriteBatchRequestExt::Proto(request))
+            .await?;
+        match result {
+            TonicWriteResponseExt::Proto(v) => Ok(v),
+            TonicWriteResponseExt::Flatbuffer(_) => Err(Status::new(Code::Internal, "logic error")),
+        }
     }
 
     async fn execute_physical_plan(
@@ -1098,46 +1231,89 @@ async fn record_write(
         .await;
 }
 
-async fn handle_write(ctx: HandlerContext, request: WriteRequest) -> Result<WriteResponse> {
-    let table_ident: TableIdentifier = request
-        .table
-        .context(ErrNoCause {
-            code: StatusCode::BadRequest,
-            msg: "missing table ident",
-        })?
-        .into();
+async fn handle_write(ctx: HandlerContext, request: WriteRequestExt<'_>) -> Result<WriteResponse> {
+    let (table_ident, rows_payload) = match request {
+        WriteRequestExt::Proto(v) => {
+            let table_ident: TableIdentifier = v
+                .table
+                .context(ErrNoCause {
+                    code: StatusCode::BadRequest,
+                    msg: "missing table ident",
+                })?
+                .into();
 
-    let rows_payload = request
-        .row_group
-        .context(ErrNoCause {
-            code: StatusCode::BadRequest,
-            msg: "missing row group payload",
-        })?
-        .rows
-        .context(ErrNoCause {
-            code: StatusCode::BadRequest,
-            msg: "missing rows payload",
-        })?;
+            let rows_payload = v
+                .row_group
+                .context(ErrNoCause {
+                    code: StatusCode::BadRequest,
+                    msg: "missing row group payload",
+                })?
+                .rows
+                .context(ErrNoCause {
+                    code: StatusCode::BadRequest,
+                    msg: "missing rows payload",
+                })?;
+            (table_ident, RowsPayloadExt::Proto(rows_payload))
+        }
+        WriteRequestExt::Flatbuffer(v) => {
+            let table_ident = v
+                .table()
+                .context(ErrNoCause {
+                    code: StatusCode::BadRequest,
+                    msg: "missing table ident",
+                })?
+                .into();
+            let rows_payload = v
+                .row_group()
+                .context(ErrNoCause {
+                    code: StatusCode::BadRequest,
+                    msg: "missing row group payload",
+                })?
+                .contiguous()
+                .context(ErrNoCause {
+                    code: StatusCode::BadRequest,
+                    msg: "missing rows payload",
+                })?;
+            (table_ident, RowsPayloadExt::Flatbuffer(rows_payload))
+        }
+    };
 
     let table = find_table_by_identifier(&ctx, &table_ident)?;
     let write_request = match rows_payload {
-        row_group::Rows::Arrow(_) => {
-            // The payload encoded in arrow format won't be accept any more.
-            return ErrNoCause {
-                code: StatusCode::BadRequest,
-                msg: "payload encoded in arrow format is not supported anymore",
+        RowsPayloadExt::Proto(v) => match v {
+            row_group::Rows::Arrow(_) => {
+                // The payload encoded in arrow format won't be accept any more.
+                return ErrNoCause {
+                    code: StatusCode::BadRequest,
+                    msg: "payload encoded in arrow format is not supported anymore",
+                }
+                .fail();
             }
-            .fail();
-        }
-        row_group::Rows::Contiguous(payload) => {
+            row_group::Rows::Contiguous(payload) => {
+                let schema = table.schema();
+                let row_group = model::WriteRequest::decode_row_group_from_contiguous_payload(
+                    ContiguousRowsExt::Proto(&payload),
+                    &schema,
+                )
+                .box_err()
+                .context(ErrWithCause {
+                    code: StatusCode::BadRequest,
+                    msg: "failed to decode row group payload",
+                })?;
+                model::WriteRequest::new(table_ident, row_group)
+            }
+        },
+        RowsPayloadExt::Flatbuffer(v) => {
             let schema = table.schema();
-            let row_group =
-                model::WriteRequest::decode_row_group_from_contiguous_payload(payload, &schema)
-                    .box_err()
-                    .context(ErrWithCause {
-                        code: StatusCode::BadRequest,
-                        msg: "failed to decode row group payload",
-                    })?;
+            let row_group = model::WriteRequest::decode_row_group_from_contiguous_payload(
+                ContiguousRowsExt::Flatbuffer(v),
+                &schema,
+            )
+            .box_err()
+            .context(ErrWithCause {
+                code: StatusCode::BadRequest,
+                msg: "failed to decode row group payload",
+            })?;
             model::WriteRequest::new(table_ident, row_group)
         }
     };
@@ -1418,4 +1594,27 @@ fn find_schema_by_identifier(
                 table_identifier.schema
             ),
         })
+}
+
+fn build_fb_write_response(resp: WriteResponse) -> FlatBufferBytes {
+    let mut builder = flatbuffers::FlatBufferBuilder::with_capacity(1024);
+    let header = resp.header.unwrap();
+
+    let error_message = builder.create_string(header.error.as_str());
+    let response_header_args = ResponseHeader::create(
+        &mut builder,
+        &ResponseHeaderArgs {
+            code: header.code,
+            error: Some(error_message),
+        },
+    );
+
+    let root_offset: flatbuffers::WIPOffset<FBWriteResponse<'_>> = FBWriteResponse::create(
+        &mut builder,
+        &FBWriteResponseArgs {
+            header: Some(response_header_args),
+            affected_rows: resp.affected_rows,
+        },
+    );
+    FlatBufferBytes::serialize(builder, root_offset)
 }

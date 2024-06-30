@@ -20,6 +20,10 @@
 use std::{collections::HashMap, convert::TryFrom, str::FromStr, sync::Arc};
 
 use arrow::datatypes::{DataType, Field};
+use fb_util::remote_engine_generated::fbprotocol::{
+    ColumnDesc as FBColumnDesc, DataType as FBDataType,
+};
+use flatbuffers;
 use horaedbproto::{remote_engine::ColumnDesc, schema as schema_pb};
 use snafu::{ensure, Backtrace, OptionExt, ResultExt, Snafu};
 use sqlparser::ast::Expr;
@@ -118,6 +122,51 @@ pub enum CompatError {
 
     #[snafu(display("Column is not nullable, name:{}.\nBacktrace:\n{}", name, backtrace))]
     NotNullable { name: String, backtrace: Backtrace },
+}
+
+/// compatibility purpose for protobuf and flatbuffer protocol
+#[derive(Debug)]
+pub enum ColumnDescExt<'a> {
+    Proto(&'a ColumnDesc),
+    Flatbuffer(&'a FBColumnDesc),
+}
+
+impl ColumnDescExt<'_> {
+    pub fn id(&self) -> u32 {
+        match self {
+            ColumnDescExt::Proto(v) => v.id,
+            ColumnDescExt::Flatbuffer(v) => v.id(),
+        }
+    }
+
+    pub fn typ_as_datumkind(&self) -> DatumKind {
+        match self {
+            ColumnDescExt::Proto(v) => DatumKind::from(v.typ()),
+            ColumnDescExt::Flatbuffer(v) => DatumKind::from(v.typ()),
+        }
+    }
+}
+
+#[allow(clippy::len_without_is_empty)]
+pub enum VecColumnDescExt<'a> {
+    Proto(&'a [ColumnDesc]),
+    Flatbuffer(flatbuffers::Vector<'a, FBColumnDesc>),
+}
+
+impl<'a> VecColumnDescExt<'_> {
+    pub fn len(&self) -> usize {
+        match self {
+            VecColumnDescExt::Proto(v) => v.len(),
+            VecColumnDescExt::Flatbuffer(v) => v.len(),
+        }
+    }
+
+    pub fn iter(&'a self) -> Box<dyn Iterator<Item = ColumnDescExt> + 'a> {
+        match self {
+            VecColumnDescExt::Proto(v) => Box::new(v.iter().map(ColumnDescExt::Proto)),
+            VecColumnDescExt::Flatbuffer(v) => Box::new(v.iter().map(ColumnDescExt::Flatbuffer)),
+        }
+    }
 }
 
 /// Id of column
@@ -288,13 +337,12 @@ impl ColumnSchema {
     }
 
     /// Check whether the given `desc` is correct with self.
-    pub fn is_correct_desc(&self, desc: &ColumnDesc) -> bool {
-        if self.id != desc.id {
+    pub fn is_correct_desc(&self, desc: &ColumnDescExt) -> bool {
+        if self.id != desc.id() {
             return false;
         }
 
-        let desc_datum_kind = DatumKind::from(desc.typ());
-        desc_datum_kind == self.data_type
+        desc.typ_as_datumkind() == self.data_type
     }
 }
 
@@ -304,6 +352,12 @@ impl From<&ColumnSchema> for ColumnDesc {
             id: column_schema.id,
             typ: schema_pb::DataType::from(column_schema.data_type).into(),
         }
+    }
+}
+
+impl From<&ColumnSchema> for FBColumnDesc {
+    fn from(column_schema: &ColumnSchema) -> Self {
+        FBColumnDesc::new(column_schema.id, FBDataType::from(column_schema.data_type))
     }
 }
 

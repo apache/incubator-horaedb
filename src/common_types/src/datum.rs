@@ -26,6 +26,7 @@ use arrow::{
 use bytes_ext::Bytes;
 use chrono::{Datelike, Local, NaiveDate, NaiveTime, TimeZone, Timelike};
 use datafusion::scalar::ScalarValue;
+use fb_util::remote_engine_generated::fbprotocol::DataType as FBDataType;
 use hash_ext::hash64;
 use horaedbproto::schema::DataType as DataTypePb;
 use serde::ser::{Serialize, Serializer};
@@ -397,6 +398,55 @@ impl From<DataTypePb> for DatumKind {
             DataTypePb::Bool => DatumKind::Boolean,
             DataTypePb::Date => DatumKind::Date,
             DataTypePb::Time => DatumKind::Time,
+        }
+    }
+}
+
+impl From<FBDataType> for DatumKind {
+    fn from(data_type: FBDataType) -> Self {
+        match data_type {
+            FBDataType::NULL => DatumKind::Null,
+            FBDataType::TIMESTAMP => DatumKind::Timestamp,
+            FBDataType::DOUBLE => DatumKind::Double,
+            FBDataType::FLOAT => DatumKind::Float,
+            FBDataType::VARBINARY => DatumKind::Varbinary,
+            FBDataType::STRING => DatumKind::String,
+            FBDataType::UINT64 => DatumKind::UInt64,
+            FBDataType::UINT32 => DatumKind::UInt32,
+            FBDataType::UINT16 => DatumKind::UInt16,
+            FBDataType::UINT8 => DatumKind::UInt8,
+            FBDataType::INT64 => DatumKind::Int64,
+            FBDataType::INT32 => DatumKind::Int32,
+            FBDataType::INT16 => DatumKind::Int16,
+            FBDataType::INT8 => DatumKind::Int8,
+            FBDataType::BOOL => DatumKind::Boolean,
+            FBDataType::DATE => DatumKind::Date,
+            FBDataType::TIME => DatumKind::Time,
+            _ => DatumKind::Null,
+        }
+    }
+}
+
+impl From<DatumKind> for FBDataType {
+    fn from(data_type: DatumKind) -> Self {
+        match data_type {
+            DatumKind::Null => FBDataType::NULL,
+            DatumKind::Timestamp => FBDataType::TIMESTAMP,
+            DatumKind::Double => FBDataType::DOUBLE,
+            DatumKind::Float => FBDataType::FLOAT,
+            DatumKind::Varbinary => FBDataType::VARBINARY,
+            DatumKind::String => FBDataType::STRING,
+            DatumKind::UInt64 => FBDataType::UINT64,
+            DatumKind::UInt32 => FBDataType::UINT32,
+            DatumKind::UInt16 => FBDataType::UINT16,
+            DatumKind::UInt8 => FBDataType::UINT8,
+            DatumKind::Int64 => FBDataType::INT64,
+            DatumKind::Int32 => FBDataType::INT32,
+            DatumKind::Int16 => FBDataType::INT16,
+            DatumKind::Int8 => FBDataType::INT8,
+            DatumKind::Boolean => FBDataType::BOOL,
+            DatumKind::Date => FBDataType::DATE,
+            DatumKind::Time => FBDataType::TIME,
         }
     }
 }

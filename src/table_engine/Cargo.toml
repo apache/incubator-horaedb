@@ -58,6 +58,8 @@ snafu = { workspace = true }
 time_ext = { workspace = true }
 tokio = { workspace = true }
 trace_metric = { workspace = true }
+fb_util = { workspace = true }
+flatbuffers = { workspace = true }
 
 [dev-dependencies]
 common_types = { workspace = true, features = ["test"] }

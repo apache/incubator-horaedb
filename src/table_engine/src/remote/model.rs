@@ -25,6 +25,7 @@ use std::{
 
 use bytes_ext::{ByteVec, Bytes};
 use common_types::{
+    column_schema::VecColumnDescExt,
     request_id::RequestId,
     row::{
         contiguous::{ContiguousRow, ContiguousRowReader, ContiguousRowWriter},
@@ -32,6 +33,18 @@ use common_types::{
     },
     schema::{IndexInWriterSchema, RecordSchema, Schema, Version},
 };
+use fb_util::{
+    common::FlatBufferBytes,
+    remote_engine_generated::fbprotocol::{
+        ColumnDesc as FBColumnDesc, ContiguousRows as FBContiguousRows,
+        ContiguousRowsArgs as FBContiguousRowsArgs, EncodedRow, EncodedRowArgs,
+        RowGroup as FBRowGroup, RowGroupArgs as FBRowGroupArgs,
+        TableIdentifier as FBTableIdentifier, TableIdentifierArgs as FBTableIdentifierArgs,
+        WriteBatchRequest as FBWriteBatchRequest, WriteBatchRequestArgs as FBWriteBatchRequestArgs,
+        WriteRequest as FBWriteRequest, WriteRequestArgs as FBWriteRequestArgs,
+    },
+};
+use flatbuffers;
 use generic_error::{BoxError, GenericError, GenericResult};
 use horaedbproto::remote_engine::{
     self, execute_plan_request, row_group::Rows::Contiguous, ColumnDesc, QueryPriority,
@@ -58,6 +71,14 @@ pub enum Error {
         "Failed to convert write request to pb, table_ident:{table_ident:?}, err:{source}",
     ))]
     WriteRequestToPb {
+        table_ident: TableIdentifier,
+        source: common_types::row::contiguous::Error,
+    },
+
+    #[snafu(display(
+        "Failed to convert write request to fb, table_ident:{table_ident:?}, err:{source}",
+    ))]
+    WriteRequestToFb {
         table_ident: TableIdentifier,
         source: common_types::row::contiguous::Error,
     },
@@ -107,6 +128,16 @@ pub struct TableIdentifier {
     pub catalog: String,
     pub schema: String,
     pub table: String,
+}
+
+impl From<FBTableIdentifier<'_>> for TableIdentifier {
+    fn from(fb: FBTableIdentifier<'_>) -> Self {
+        Self {
+            catalog: fb.catalog().unwrap().to_string(),
+            schema: fb.schema().unwrap().to_string(),
+            table: fb.table().unwrap().to_string(),
+        }
+    }
 }
 
 impl From<horaedbproto::remote_engine::TableIdentifier> for TableIdentifier {
@@ -164,7 +195,7 @@ impl TryFrom<ReadRequest> for horaedbproto::remote_engine::ReadRequest {
     }
 }
 
-#[derive(Default)]
+#[derive(Default, Debug)]
 pub struct WriteBatchRequest {
     pub batch: Vec<WriteRequest>,
 }
@@ -179,8 +210,78 @@ impl WriteBatchRequest {
 
         Ok(remote_engine::WriteBatchRequest { batch })
     }
+
+    pub fn convert_into_fb(self) -> Result<FlatBufferBytes> {
+        let mut builder: flatbuffers::FlatBufferBuilder<'_> =
+            flatbuffers::FlatBufferBuilder::with_capacity(1024);
+        let mut fb_items = Vec::new();
+        for item in self.batch {
+            let item_offset = convert_into_single_fb(&mut builder, &item)?;
+            fb_items.push(item_offset);
+        }
+        let root_offset = builder.create_vector(&fb_items);
+        let root_offset = FBWriteBatchRequest::create(
+            &mut builder,
+            &FBWriteBatchRequestArgs {
+                batch: Some(root_offset),
+            },
+        );
+        Ok(FlatBufferBytes::serialize(builder, root_offset))
+    }
 }
 
+pub enum ContiguousRowsExt<'a> {
+    Proto(&'a horaedbproto::remote_engine::ContiguousRows),
+    Flatbuffer(FBContiguousRows<'a>),
+}
+
+impl<'a> ContiguousRowsExt<'_> {
+    pub fn column_descs(&'a self) -> VecColumnDescExt {
+        match self {
+            ContiguousRowsExt::Proto(v) => VecColumnDescExt::Proto(&v.column_descs),
+            ContiguousRowsExt::Flatbuffer(v) => {
+                let column_descs = v.column_descs().unwrap();
+                VecColumnDescExt::Flatbuffer(column_descs)
+            }
+        }
+    }
+
+    fn encoded_rows(&self) -> EncodedRowsExt {
+        match self {
+            ContiguousRowsExt::Proto(v) => EncodedRowsExt::Proto(&v.encoded_rows),
+            ContiguousRowsExt::Flatbuffer(v) => {
+                let encoded_rows = v.encoded_rows().unwrap();
+                EncodedRowsExt::Flatbuffer(encoded_rows)
+            }
+        }
+    }
+}
+
+enum EncodedRowsExt<'a> {
+    Proto(&'a Vec<Vec<u8>>),
+    Flatbuffer(flatbuffers::Vector<'a, flatbuffers::ForwardsUOffset<EncodedRow<'a>>>),
+}
+
+impl<'a> EncodedRowsExt<'_> {
+    pub fn len(&self) -> usize {
+        match self {
+            EncodedRowsExt::Proto(v) => v.len(),
+            EncodedRowsExt::Flatbuffer(v) => v.len(),
+        }
+    }
+
+    pub fn iter(&'a self) -> Box<dyn Iterator<Item = &[u8]> + 'a> {
+        match self {
+            EncodedRowsExt::Proto(v) => Box::new(v.iter().map(|x| x.as_slice())),
+            EncodedRowsExt::Flatbuffer(v) => Box::new(v.iter().map(|x| {
+                let row = x.bytes().unwrap().bytes();
+                row
+            })),
+        }
+    }
+}
+
+#[derive(Debug)]
 pub struct WriteRequest {
     pub table: TableIdentifier,
     pub write_request: TableWriteRequest,
@@ -195,13 +296,14 @@ impl WriteRequest {
     }
 
     pub fn decode_row_group_from_contiguous_payload(
-        payload: horaedbproto::remote_engine::ContiguousRows,
+        payload: ContiguousRowsExt,
         schema: &Schema,
     ) -> Result<RowGroup> {
-        validate_contiguous_payload_schema(schema, &payload.column_descs)?;
+        validate_contiguous_payload_schema(schema, payload.column_descs())?;
 
-        let mut rows = Vec::with_capacity(payload.encoded_rows.len());
-        for encoded_row in payload.encoded_rows {
+        let encoded_rows = payload.encoded_rows();
+        let mut rows = Vec::with_capacity(encoded_rows.len());
+        for encoded_row in encoded_rows.iter() {
             let reader = ContiguousRowReader::try_new(&encoded_row, schema)
                 .box_err()
                 .context(ConvertRowGroup)?;
@@ -219,6 +321,13 @@ impl WriteRequest {
         // The rows is decoded according to the schema, so there is no need to do a
         // more check here.
         Ok(RowGroup::new_unchecked(schema.clone(), rows))
+    }
+
+    pub fn convert_into_fb(self) -> Result<FlatBufferBytes> {
+        let mut builder: flatbuffers::FlatBufferBuilder<'_> =
+            flatbuffers::FlatBufferBuilder::with_capacity(1024);
+        let root_offset = convert_into_single_fb(&mut builder, &self)?;
+        Ok(FlatBufferBytes::serialize(builder, root_offset))
     }
 
     pub fn convert_into_pb(self) -> Result<horaedbproto::remote_engine::WriteRequest> {
@@ -265,8 +374,81 @@ impl WriteRequest {
     }
 }
 
+fn convert_into_single_fb<'a>(
+    builder: &mut flatbuffers::FlatBufferBuilder<'a>,
+    request: &WriteRequest,
+) -> Result<flatbuffers::WIPOffset<FBWriteRequest<'a>>> {
+    let row_group = &request.write_request.row_group;
+    let table_schema = row_group.schema();
+
+    let catalog = builder.create_string(request.table.catalog.as_str());
+    let schema = builder.create_string(request.table.schema.as_str());
+    let table = builder.create_string(request.table.table.as_str());
+
+    let table_identifier: flatbuffers::WIPOffset<FBTableIdentifier<'_>> = FBTableIdentifier::create(
+        builder,
+        &FBTableIdentifierArgs {
+            catalog: Some(catalog),
+            schema: Some(schema),
+            table: Some(table),
+        },
+    );
+
+    let mut encoded_rows = Vec::with_capacity(row_group.num_rows());
+    let index_in_schema = IndexInWriterSchema::for_same_schema(table_schema.num_columns());
+    for row in row_group {
+        let mut buf = ByteVec::new();
+        let mut writer = ContiguousRowWriter::new(&mut buf, table_schema, &index_in_schema);
+        writer.write_row(row).with_context(|| WriteRequestToFb {
+            table_ident: request.table.clone(),
+        })?;
+        let bytes = builder.create_vector(&buf);
+        let encode_row = EncodedRow::create(builder, &EncodedRowArgs { bytes: Some(bytes) });
+        encoded_rows.push(encode_row);
+    }
+
+    let fb_encoded_rows = builder.create_vector(&encoded_rows);
+
+    let column_descs = table_schema
+        .columns()
+        .iter()
+        .map(FBColumnDesc::from)
+        .collect_vec();
+    let column_descs = builder.create_vector(&column_descs);
+
+    let contiguous = FBContiguousRows::create(
+        builder,
+        &FBContiguousRowsArgs {
+            schema_version: table_schema.version(),
+            encoded_rows: Some(fb_encoded_rows),
+            column_descs: Some(column_descs),
+        },
+    );
+
+    let row_group = FBRowGroup::create(
+        builder,
+        &FBRowGroupArgs {
+            min_timestamp: 0,
+            max_timestamp: 0,
+            contiguous: Some(contiguous),
+        },
+    );
+
+    let root_offset: flatbuffers::WIPOffset<FBWriteRequest<'_>> = FBWriteRequest::create(
+        builder,
+        &FBWriteRequestArgs {
+            table: Some(table_identifier),
+            row_group: Some(row_group),
+        },
+    );
+    Ok(root_offset)
+}
+
 /// Validate the provided column descriptions with schema.
-fn validate_contiguous_payload_schema(schema: &Schema, column_descs: &[ColumnDesc]) -> Result<()> {
+fn validate_contiguous_payload_schema(
+    schema: &Schema,
+    column_descs: VecColumnDescExt,
+) -> Result<()> {
     ensure!(
         schema.num_columns() == column_descs.len(),
         SchemaMismatch {
@@ -280,7 +462,7 @@ fn validate_contiguous_payload_schema(schema: &Schema, column_descs: &[ColumnDes
 
     for (expect_column_schema, desc) in schema.columns().iter().zip(column_descs.iter()) {
         ensure!(
-            expect_column_schema.is_correct_desc(desc),
+            expect_column_schema.is_correct_desc(&desc),
             SchemaMismatch {
                 msg: format!("expect column schema:{expect_column_schema:?}, but got {desc:?}")
             }
